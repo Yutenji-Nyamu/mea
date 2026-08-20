@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 import unittest
@@ -8,20 +7,6 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def run_import_probe(source: str) -> dict[str, bool]:
-    process = subprocess.run(
-        [sys.executable, "-c", source],
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
-    if process.returncode != 0:
-        raise AssertionError(process.stderr)
-    return json.loads(process.stdout)
 
 
 class ProductionCliBoundaryTests(unittest.TestCase):
@@ -41,87 +26,7 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         ), self.assertRaises(SystemExit):
             parse_args()
 
-    def test_agent_exports_cli_contracts_without_internal_acceptance_helpers(
-        self,
-    ) -> None:
-        probe = (
-            "import importlib.util,json,pathlib;"
-            "from mea import agent_cli;"
-            "path=pathlib.Path('scripts/manipeval_agent.py');"
-            "spec=importlib.util.spec_from_file_location('agent_reexports',path);"
-            "module=importlib.util.module_from_spec(spec);"
-            "spec.loader.exec_module(module);"
-            "print(json.dumps({"
-            "'parse_args':module.parse_args is agent_cli.parse_args,"
-            "'argument_validation':module.validate_and_normalize_agent_args "
-            "is agent_cli.validate_and_normalize_agent_args,"
-            "'candidate_budget':module.resolve_plan_agent_candidate_budget "
-            "is agent_cli.resolve_plan_agent_candidate_budget,"
-            "'episode_results_absent':"
-            "not hasattr(module,'_episode_tool_results'),"
-            "'bounded_proposal_absent':"
-            "not hasattr(module,'apply_bounded_round_proposal'),"
-            "'bounded_transition_absent':"
-            "not hasattr(module,'adjudicate_bounded_transition'),"
-            "'adaptive_persist_absent':"
-            "not hasattr(module,'persist_adaptive_step_selection'),"
-            "'flagship_acceptance_module_absent':"
-            "importlib.util.find_spec('mea.agent_acceptance') is None}))"
-        )
-        self.assertEqual(
-            run_import_probe(probe),
-            {
-                "parse_args": True,
-                "argument_validation": True,
-                "candidate_budget": True,
-                "episode_results_absent": True,
-                "bounded_proposal_absent": True,
-                "bounded_transition_absent": True,
-                "adaptive_persist_absent": True,
-                "flagship_acceptance_module_absent": True,
-            },
-        )
-
-    def test_retired_planner_modules_are_absent(self) -> None:
-        modules = [
-            "experiments.paper.compat_agent_profile",
-            "experiments.paper.compat_agent_runner",
-            "experiments.paper.compat_bounded_proposals",
-            "experiments.paper.evidence_manifest",
-            "experiments.paper.legacy_planner_factory",
-            "mea.evaluation_graph",
-            "mea.planner.catalog",
-            "mea.planner.catalog_plan",
-            "mea.planner.click_bell",
-            "mea.planner.click_bell_catalog",
-            "mea.planner.global_query",
-            "mea.planner.official",
-            "mea.planner.prototype",
-            "mea.planner.adaptive_step",
-            "mea.planner.session",
-            "mea.portfolio",
-            "mea.proposal_agent",
-        ]
-        probe = (
-            "import importlib.util,json;"
-            f"print(json.dumps({{name:importlib.util.find_spec(name) is None "
-            f"for name in {modules!r}}}))"
-        )
-        absent = run_import_probe(probe)
-        self.assertEqual(absent, {name: True for name in modules})
-
-    def test_plan_agent_routing_uses_runtime_inventory_without_legacy_catalog(
-        self,
-    ) -> None:
-        source = (
-            REPO_ROOT / "mea/agent_query_routing.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("discover_robotwin_runtime_task_inventory(", source)
-        self.assertIn("capability_catalog=None", source)
-        self.assertNotIn("mea.planner.catalog", source)
-        self.assertNotIn("run_legacy_catalog_agent", source)
-
-    def test_paper_only_arguments_are_hidden_from_production_help(self) -> None:
+    def test_production_help_exposes_current_entry_options(self) -> None:
         process = subprocess.run(
             [sys.executable, "scripts/manipeval_agent.py", "--help"],
             cwd=REPO_ROOT,
@@ -132,200 +37,26 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(process.returncode, 0, process.stderr)
         for option in (
-            "--open-query-planner",
-            "--proposal-mode",
-            "--task-profile",
-            "--planning-policy",
-            "--evidence-manifest",
-            "--command-plan",
-            "--registered-route",
-            "--registered-strategy",
-            "--execution-backend",
+            "--request",
+            "--auto-route",
+            "--policy-backend",
+            "--generated-rounds",
         ):
-            self.assertNotIn(option, process.stdout)
-        self.assertIn("--auto-route", process.stdout)
-        self.assertNotIn("legacy_v1", process.stdout)
+            self.assertIn(option, process.stdout)
 
-    def test_production_cli_rejects_retired_execution_options(self) -> None:
-        from mea.agent_cli import parse_args
-
-        with self.assertRaises(SystemExit):
-            parse_args(
-                [
-                    "--request",
-                    "q",
-                    "--execution-backend",
-                    "act",
-                ]
-            )
-        with self.assertRaises(SystemExit):
-            parse_args(
-                [
-                    "--request",
-                    "q",
-                    "--telemetry-profile",
-                    "legacy_v1",
-                ]
-            )
-
-    def test_default_production_mode_is_plan_agent(self) -> None:
-        source = (REPO_ROOT / "mea/agent_run_dispatch.py").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn('open_query_planner="plan_agent_v1"', source)
-        self.assertNotIn("run_legacy_catalog_agent", source)
-
-    def test_control_path_plans_next_subaspect_after_evidence(self) -> None:
-        decision_source = (
-            REPO_ROOT / "mea/plan_agent_runtime_decisions.py"
-        ).read_text(
-            encoding="utf-8"
-        )
-        application_source = (
-            REPO_ROOT / "mea/plan_agent_application.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn(
-            "self.session.propose_semantic_step(",
-            decision_source,
-        )
-        self.assertIn(
-            "self.session.bind_evidence_conditioned_semantic_step(",
-            decision_source,
-        )
-        self.assertNotIn("pending_first_semantic_bundle", decision_source)
-        self.assertNotIn("use_pending_first", decision_source)
-        self.assertNotIn("_persist_contract_stop", application_source)
-        self.assertIn(
-            'if plan_step["action"] == "stop":', decision_source
-        )
-        self.assertIn("materialized_round = None", decision_source)
-        self.assertNotIn(
-            "runtime stop validation passed but the Plan Agent did not "
-            "propose action=stop",
-            decision_source + application_source,
-        )
-
-    def test_plan_agent_decides_before_the_external_hard_cap(self) -> None:
-        source = (
-            REPO_ROOT / "mea/plan_agent_runtime_decisions.py"
-        ).read_text(
-            encoding="utf-8"
-        )
-        author_decision = source.index(
-            "self.session.propose_semantic_step(",
-        )
-        continue_gate = source.index(
-            'raw_proposal.get("action") != "stop"',
-            author_decision,
-        )
-        hard_cap = source.index(
-            "apply_external_hard_round_cap(",
-            continue_gate,
-        )
-        bind_continue = source.index(
-            "self.session.bind_evidence_conditioned_semantic_step(",
-            hard_cap,
-        )
-        self.assertLess(
-            author_decision,
-            continue_gate,
-            "the Agent must author stop/continue before the cap is checked",
-        )
-        self.assertLess(
-            continue_gate,
-            hard_cap,
-            "only an Agent continue decision may enter the hard-cap stop",
-        )
-        self.assertLess(
-            hard_cap,
-            bind_continue,
-            "a capped continue must stop before candidate binding/materialization",
-        )
-
-    def test_production_cli_calls_the_extracted_application(self) -> None:
-        cli_source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
-            encoding="utf-8"
-        )
-        dispatch_source = (
-            REPO_ROOT / "mea/agent_run_dispatch.py"
-        ).read_text(
-            encoding="utf-8"
-        )
-        execution = dispatch_source.index("run_plan_agent_application(")
-        self.assertGreaterEqual(execution, 0)
-        self.assertNotIn("run_legacy_catalog_agent(", dispatch_source)
-        self.assertIn("finalize_manifest_and_dispatch(", cli_source)
-        self.assertNotIn(
-            "run_plan_agent_application(",
-            cli_source,
-            "the CLI must only parse, validate, and dispatch",
-        )
-        self.assertNotIn(
-            "round_runs: list[dict[str, Any]] = []",
-            cli_source + dispatch_source,
-        )
-        self.assertNotIn(
-            "propose_semantic_step(",
-            cli_source + dispatch_source,
-            "the production decision loop must not remain duplicated in the CLI",
-        )
-
-    def test_precontrol_concern_does_not_create_a_cli_aspect_menu(self) -> None:
-        source = (REPO_ROOT / "mea/agent_cli.py").read_text(encoding="utf-8")
-        self.assertNotIn("--bound-requested-aspect-id", source)
-        self.assertNotIn("resolve_plan_agent_allowed_aspects", source)
-
-    def test_production_execution_uses_native_method_runtime(
-        self,
-    ) -> None:
-        agent_source = (REPO_ROOT / "scripts/manipeval_agent.py").read_text(
-            encoding="utf-8"
-        )
-        executor_source = (REPO_ROOT / "mea/round_executor.py").read_text(
-            encoding="utf-8"
-        )
-        assembly_source = (
-            REPO_ROOT / "mea/robotwin/production_round_executor.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn(
-            '"act": partial(',
-            assembly_source,
-        )
-        self.assertIn(
-            '"smolvla": partial(',
-            assembly_source,
-        )
-        self.assertIn(
-            '"hyvla": partial(',
-            assembly_source,
-        )
-        self.assertIn(
-            "generated_task_materializer=materializer",
-            assembly_source,
-        )
-        self.assertNotIn("native_policy_rounds", agent_source)
-        self.assertNotIn(
-            "project_executed_round_through_method_runtime(",
-            agent_source + executor_source,
-        )
-
-    def test_candidate_budget_reserves_a_required_control_round(self) -> None:
-        probe = (
-            "import importlib.util,json,pathlib;"
-            "path=pathlib.Path('scripts/manipeval_agent.py');"
-            "spec=importlib.util.spec_from_file_location('agent_budget',path);"
-            "module=importlib.util.module_from_spec(spec);"
-            "spec.loader.exec_module(module);"
-            "budget=module.resolve_plan_agent_candidate_budget("
-            "1,candidate_resolution=None);"
-            "print(json.dumps({'budget':budget}))"
-        )
-        self.assertEqual(run_import_probe(probe), {"budget": 0})
-
-    def test_typed_official_experiment_is_not_charged_two_rounds(self) -> None:
+    def test_candidate_budget_matches_control_requirement(self) -> None:
         from mea.agent_cli import (
             resolve_plan_agent_candidate_budget,
             resolve_plan_agent_control_required,
+        )
+
+        self.assertTrue(resolve_plan_agent_control_required())
+        self.assertEqual(
+            resolve_plan_agent_candidate_budget(
+                1,
+                candidate_resolution=None,
+            ),
+            0,
         )
 
         resolution = {

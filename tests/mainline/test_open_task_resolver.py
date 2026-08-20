@@ -393,18 +393,6 @@ class QueryInterpretationTests(unittest.TestCase):
             provider.prompts[0],
         )
 
-    def _cold_agent_can_be_frozen_to_one_attempt(self):
-        provider = self.Provider(["{}"])
-        with self.assertRaisesRegex(
-            resolver.OpenTaskResolutionError, "1 FreeConcern attempt"
-        ):
-            resolver.PlanAgentQueryInterpreter(
-                provider, model="fixture", max_attempts=1
-            ).propose(
-                "Which concern matters?", policy_card=single_task_policy()
-            )
-        self.assertEqual(len(provider.prompts), 1)
-
     def test_query_prose_does_not_reclassify_provider_typed_needs(self):
         query = (
             "Define success as the official goal and one additional "
@@ -486,12 +474,6 @@ class QueryInterpretationTests(unittest.TestCase):
         self.assertEqual(
             result["experiment_needs"]["checker_need"],
             copied["checker_need"],
-        )
-
-    def _cold_historical_free_concern_class_name_remains_readable(self):
-        self.assertIs(
-            resolver.FreeConcernAgent,
-            resolver.PlanAgentQueryInterpreter,
         )
 
 
@@ -631,20 +613,6 @@ class PolicyGateTests(unittest.TestCase):
         self.assertEqual(result["reason_code"], "policy_task_mismatch")
         self.assertIsNone(result["selected_base_task"])
         self.assertEqual(result["ranked_candidates"][0]["task_name"], "open_laptop")
-
-    def _cold_single_task_rejects_clearly_wrong_cross_task_even_with_margin(self):
-        result = resolver.resolve_open_task(
-            concern("lift the laptop lid until the laptop is fully open"),
-            policy_card=single_task_policy(),
-            inventory=inventory(),
-            near_tie_margin=0.1,
-        )
-        self.assertEqual(result["decision"], "unsupported")
-        self.assertEqual(result["reason_code"], "policy_task_mismatch")
-        self.assertNotIn(
-            "beat_block_hammer",
-            result["resolution_contract"]["plausible_candidate_names"],
-        )
 
     def test_multitask_checkpoint_can_retrieve_its_other_training_task(self):
         result = resolver.resolve_open_task(

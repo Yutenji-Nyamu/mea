@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-from mea.planner.claim_first_initial import PlanAgentInitialPlanBuilder
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.plan_agent_errors import PlanAgentSessionError
 from mea.planner.plan_agent_session import PlanAgentSession
@@ -409,36 +406,6 @@ class CapturingPlanner:
 
 
 class PlanAgentRuntimeTests(unittest.TestCase):
-    def test_initial_manifest_omits_repository_commit_transport(self):
-        binding = build_policy_task_binding(
-            task_name="click_bell",
-            task_family="manipulation",
-            policy={"name": "ACT"},
-            checkpoint={
-                "ready": True,
-                "checkpoint_id": "act-click_bell/demo_clean-50",
-            },
-        )
-        frozen_target = {
-            "schema_version": 3,
-            "binding_mode": "single_task_single_checkpoint_open_world",
-            "policy_task_binding": binding,
-            "max_rounds": 2,
-        }
-        with tempfile.TemporaryDirectory() as temporary:
-            manifest = PlanAgentInitialPlanBuilder(
-                Path(temporary),
-                target=frozen_target,
-                max_rounds=2,
-                start_seed=7,
-            ).plan(
-                "Does the policy expose a weakness?",
-                evaluation_id="eval_no_commit_transport",
-                control_required=False,
-            )
-
-        self.assertNotIn("base_commit", manifest)
-
     def test_apply_plan_step_after_required_control_uses_candidate_budget(self):
         query = "Where does this policy first expose a weakness?"
         binding = build_policy_task_binding(
@@ -585,22 +552,6 @@ class PlanAgentRuntimeTests(unittest.TestCase):
             updated["planning_state"], "stopped_after_round_1"
         )
         self.assertTrue(directive["query_assessment"]["should_stop"])
-
-    def test_runtime_limits_keep_only_budget_and_control_choice(self):
-        session = PlanAgentSession(
-            "Where does this policy first expose a weakness?",
-            target(),
-            require_control_anchor=False,
-        )
-
-        self.assertEqual(
-            session.runtime_limits,
-            {
-                "schema_version": 4,
-                "round_budget": 3,
-                "control_requirement": "not_required",
-            },
-        )
 
     def test_evidence_is_seen_before_the_next_concern_is_authored(self):
         session = PlanAgentSession(

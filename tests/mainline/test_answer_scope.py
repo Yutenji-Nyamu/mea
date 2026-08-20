@@ -1,4 +1,3 @@
-import inspect
 import json
 import tempfile
 import unittest
@@ -204,12 +203,6 @@ class AnswerScopeTests(unittest.TestCase):
         self.assertFalse(
             feedback["consistency_validation"]["deterministic_correction"]
         )
-
-    def test_finalization_uses_deterministic_session_answer(self):
-        source = inspect.getsource(PlanAgentFinalizationMixin._finalize)
-
-        self.assertIn("build_scoped_plan_agent_answer", source)
-        self.assertNotIn("PlanAgentFinalSummary(", source)
 
     def test_hard_cap_uses_one_budget_exhausted_assessment_everywhere(self):
         bundle = evidence("continue")

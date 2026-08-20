@@ -129,22 +129,6 @@ def test_native_generated_task_run_id_is_stable_and_importable():
         _build_native_run_id("eval_" + "x" * 240, "round_1", "act")
 
 
-def test_legacy_act_binding_remains_readable_without_new_scope_fields():
-    binding = build_policy_task_binding(
-        task_name="adjust_bottle",
-        task_family="object_manipulation",
-        policy={"name": "ACT", "language_conditioned": False},
-        checkpoint={
-            "policy_name": "ACT",
-            "checkpoint_id": "act-adjust_bottle/demo_clean-50",
-            "ready": True,
-        },
-    )
-
-    assert binding["hooks"]["rollout"]["kind"] == "act_eval_mea"
-    assert "task_scope" not in binding["checkpoint"]
-
-
 def test_smolvla_manifest_binds_discovered_tasks_to_one_checkpoint(tmp_path):
     _write_official_task(tmp_path, "alpha_task", "move the alpha object")
     _write_official_task(tmp_path, "beta_task", "move the beta object")

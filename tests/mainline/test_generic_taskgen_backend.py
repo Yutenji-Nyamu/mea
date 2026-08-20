@@ -32,7 +32,6 @@ from mea.taskgen.provider_scene_checker import (
     run_provider_codegen,
     validate_method_ast,
 )
-from mea.taskgen.probe import robot_tcp_xyz_summary
 from mea.taskgen.probe_runtime import _write_json as _write_probe_json
 from mea.taskgen.preservation_facts import (
     PreservationFactError,
@@ -40,12 +39,16 @@ from mea.taskgen.preservation_facts import (
     validate_preservation_fact,
 )
 from mea.taskgen.runtime import (
-    _checker_fixture_failure_diagnosis,
     _generated_checker_execution_failure,
     _requested_position_delta_report,
     _tracked_actor_position_changes,
     build_preservation_report,
     record_generic_taskgen_generation_failure,
+)
+
+
+CANONICAL_TASKGEN_README = (
+    Path(__file__).resolve().parents[2] / "mea/taskgen/README.Agent.md"
 )
 
 
@@ -634,7 +637,7 @@ class cold_unseen_task:
     readme = root / "mea/taskgen/README.Agent.md"
     readme.parent.mkdir(parents=True)
     readme.write_text(
-        "Generate bounded RoboTwin task methods.\n",
+        CANONICAL_TASKGEN_README.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
 
@@ -710,7 +713,7 @@ class {task_name}:
     readme = root / "mea/taskgen/README.Agent.md"
     readme.parent.mkdir(parents=True, exist_ok=True)
     readme.write_text(
-        "Generate bounded RoboTwin task methods.\n",
+        CANONICAL_TASKGEN_README.read_text(encoding="utf-8"),
         encoding="utf-8",
     )
 
@@ -888,21 +891,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             "get_left_tcp_pose",
             _GENERIC_READ_ONLY_METHOD_CALLS,
         )
-
-    def _cold_safe_ast_allows_conventional_discard_loop_target(self) -> None:
-        tree = validate_method_ast(
-            "def load_actors(self):\n"
-            "    for _ in []:\n"
-            "        pass\n",
-            "load_actors",
-            safe_direct_calls=set(),
-            safe_module_calls=set(),
-            safe_method_calls=set(),
-            allowed_private_attributes=set(),
-            error_type=GenericTaskGenError,
-        )
-
-        self.assertIsInstance(tree, ast.Module)
 
     def test_tool_only_candidate_bypasses_generic_taskgen(self) -> None:
         candidate = build_experiment_candidate(
@@ -1309,45 +1297,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             ["contact_point", "position"],
         )
 
-    def _cold_compound_position_and_orientation_checks_both(self) -> None:
-        report = build_preservation_report(
-            ["target position and orientation"],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-            official_setup={
-                "seed": 17,
-                "tracked_actors": [
-                    {
-                        "id": "target",
-                        "position": [0.0, 0.0, 0.0],
-                        "quaternion": [1.0, 0.0, 0.0, 0.0],
-                        "contact_points": {},
-                    }
-                ],
-            },
-            generated_setup={
-                "seed": 17,
-                "tracked_actors": [
-                    {
-                        "id": "target",
-                        "position": [0.01, 0.0, 0.0],
-                        "quaternion": [1.0, 0.0, 0.0, 0.0],
-                        "contact_points": {},
-                    }
-                ],
-            },
-        )
-
-        self.assertFalse(report["verified"])
-        self.assertEqual(report["status"], "failed")
-        self.assertEqual(
-            report["checks"][0]["authority"],
-            "same_seed_simulator_state:"
-            "tracked_actors.position+quaternion",
-        )
-
     def test_same_seed_pose_probe_jitter_is_not_a_semantic_change(self) -> None:
         report = build_preservation_report(
             [
@@ -1551,72 +1500,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
 
         self.assertFalse(report["verified"])
         self.assertEqual(report["status"], "failed")
-
-    def _cold_chinese_goal_and_contact_geometry_preservation_is_typed(
-        self,
-    ) -> None:
-        actor = {
-            "id": "bell",
-            "collision_geometry": [
-                {
-                    "geometry_type": "create_actor_asset",
-                    "modelname": "050_bell",
-                    "model_id": 0,
-                    "convex": True,
-                    "is_static": True,
-                    "scale": [0.05, 0.05, 0.05],
-                }
-            ],
-        }
-        report = build_preservation_report(
-            ["任务目标与接触几何语义"],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-            official_setup={"seed": 31, "tracked_actors": [actor]},
-            generated_setup={"seed": 31, "tracked_actors": [dict(actor)]},
-        )
-
-        self.assertTrue(report["verified"])
-        self.assertEqual(report["status"], "verified")
-        self.assertEqual(
-            report["checks"][0]["kind"],
-            "checker_semantics+geometry",
-        )
-
-    def _cold_height_preservation_ignores_requested_xy_offset(self) -> None:
-        common = {
-            "id": "bell",
-            "quaternion": [1.0, 0.0, 0.0, 0.0],
-            "contact_points": {},
-            "collision_geometry": [],
-        }
-        report = build_preservation_report(
-            ["height"],
-            scene_generated=True,
-            checker_generated=False,
-            visual_self_check_enabled=True,
-            visual={"passed": True, "unexpected_changes": []},
-            official_setup={
-                "seed": 37,
-                "tracked_actors": [
-                    {**common, "position": [0.0, 0.0, 0.76]}
-                ],
-            },
-            generated_setup={
-                "seed": 37,
-                "tracked_actors": [
-                    {**common, "position": [0.1, 0.0, 0.76]}
-                ],
-            },
-        )
-
-        self.assertTrue(report["verified"])
-        self.assertIn(
-            "position_z",
-            report["checks"][0]["authority"],
-        )
 
     def test_vertical_axis_position_preservation_compares_only_z(self) -> None:
         common = {
@@ -2348,41 +2231,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             )
         )
 
-    def _cold_pose_property_item_assignment_is_rejected(self) -> None:
-        repo_root = Path(__file__).resolve().parents[2]
-        methods = {
-            "load_actors": (
-                "def load_actors(self):\n"
-                "    rand_pos = rand_pose(\n"
-                "        xlim=[-0.25, 0.25],\n"
-                "        ylim=[-0.2, 0.0],\n"
-                "        qpos=[0.5, 0.5, 0.5, 0.5],\n"
-                "    )\n"
-                "    rand_pos.p[0] += 0.08\n"
-                "    self.bell = create_actor(\n"
-                "        scene=self,\n"
-                "        pose=rand_pos,\n"
-                '        modelname="050_bell",\n'
-                "        convex=True,\n"
-                "        model_id=0,\n"
-                "        is_static=True,\n"
-                "    )\n"
-            ),
-            "check_success": (
-                "def check_success(self):\n"
-                "    return bool(self.stage_success_tag)\n"
-            ),
-        }
-        with self.assertRaisesRegex(
-            GenericTaskGenError,
-            r"mutates Pose\.p.*construct a new sapien\.Pose",
-        ):
-            validate_generic_task_methods(
-                methods,
-                official_source=repo_root / "envs/click_bell.py",
-                official_class="click_bell",
-            )
-
     def test_literal_scale_multiplier_matches_requested_direction(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -2421,39 +2269,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 },
             )
             self.assertTrue(report["valid"])
-
-    def _cold_scale_gate_defers_nonliteral_or_irrelevant_changes(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            task_name = "runtime_novel_task"
-            _write_discoverable_task_repo(root, task_name)
-            checker = (
-                "def check_success(self):\n"
-                "    return self.target.is_ready() and "
-                "self.target is not None\n"
-            )
-            for scene_need, scale_expression in (
-                ("Move the target laterally.", "0.5"),
-                ("Increase the target size by 50%.", "self.scale_factor"),
-            ):
-                with self.subTest(scene_need=scene_need):
-                    report = validate_generic_task_methods(
-                        {
-                            "load_actors": (
-                                "def load_actors(self):\n"
-                                "    self.target = create_actor(\n"
-                                '        modelname="900_novel_target",\n'
-                                "        scale_multiplier="
-                                f"{scale_expression},\n"
-                                "    )\n"
-                            ),
-                            "check_success": checker,
-                        },
-                        official_source=root / f"envs/{task_name}.py",
-                        official_class=task_name,
-                        scene_need=scene_need,
-                    )
-                    self.assertTrue(report["valid"])
 
     def test_semantic_reuse_ignores_query_wording_and_candidate_id(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2559,51 +2374,6 @@ class GenericTaskGenBackendTests(unittest.TestCase):
                 (root / "mea/generated_tasks/run_cold_exact").exists()
             )
 
-    def _cold_ablation_condition_never_reuses_complete_task_artifact(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            _write_cold_task_repo(root)
-            provider = _Provider(
-                [
-                    {
-                        "load_actors": (
-                            "def load_actors(self):\n"
-                            '    self.target = "generated"\n'
-                        ),
-                        "check_success": (
-                            "def check_success(self):\n"
-                            '    return self.target == "generated"\n'
-                        ),
-                    }
-                ]
-            )
-            lookup_calls = 0
-
-            def find_exact(_query: Mapping[str, Any]) -> Mapping[str, Any]:
-                nonlocal lookup_calls
-                lookup_calls += 1
-                raise AssertionError("ablation must not reuse an artifact")
-
-            result = GenericRoboTwinTaskGenBackend(
-                root,
-                provider,
-                model="fixture-model",
-                find_exact=find_exact,
-            ).materialize(
-                _candidate(),
-                _adapter(),
-                run_id="run_cold_ablation",
-                ablation_switches={
-                    "rag": False,
-                    "visual_self_check": True,
-                    "readme_agent": True,
-                },
-            )
-
-            self.assertEqual(result["status"], "generated")
-            self.assertEqual(lookup_calls, 0)
-            self.assertEqual(provider.calls, 1)
-
     def test_unseen_task_generates_after_one_render_repair(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -2681,167 +2451,14 @@ class GenericTaskGenBackendTests(unittest.TestCase):
             self.assertNotIn("template_id", prompt)
             self.assertNotIn("aspect_id", prompt)
             self.assertIn("README.AGENT CONTEXT", prompt)
-
-    def test_taskgen_prompt_carries_checker_semantic_rules(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            _write_cold_task_repo(root)
-            canonical_readme = (
-                Path(__file__).resolve().parents[2]
-                / "mea/taskgen/README.Agent.md"
+            canonical_readme = CANONICAL_TASKGEN_README.read_text(
+                encoding="utf-8"
+            ).strip()
+            self.assertTrue(canonical_readme)
+            self.assertIn(
+                "README.AGENT CONTEXT:\n" + canonical_readme,
+                prompt,
             )
-            (root / "mea/taskgen/README.Agent.md").write_text(
-                canonical_readme.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-            provider = _Provider(
-                [
-                    {
-                        "load_actors": (
-                            "def load_actors(self):\n"
-                            '    self.target = "generated"\n'
-                        ),
-                        "check_success": (
-                            "def check_success(self):\n"
-                            '    return self.target != ""\n'
-                        ),
-                    }
-                ]
-            )
-            result = GenericRoboTwinTaskGenBackend(
-                root,
-                provider,
-                model="fixture-model",
-            ).materialize(
-                _candidate(),
-                _adapter(),
-                run_id="run_checker_prompt_rules",
-                max_regenerations=1,
-            )
-
-        self.assertEqual(provider.calls, 1)
-        self.assertEqual(result["provider_call_count"], 1)
-        self.assertEqual(result["local_repair_count"], 0)
-        prompt = provider.prompts[0]
-        self.assertIn("Implement every `checker_need` requirement", prompt)
-        self.assertIn("Preserve all quantifiers", prompt)
-        self.assertIn("direct current simulator observables", prompt)
-        self.assertIn("Never substitute a correlated proxy", prompt)
-
-    def _cold_unexpected_preflight_failure_is_terminal_and_counted(self) -> None:
-        def failing_preflight(
-            _attempt_dir: Path,
-            _module_source: str,
-            _candidate_value: Mapping[str, Any],
-        ) -> Mapping[str, Any]:
-            raise ValueError("fixture preflight failure")
-
-        base = _adapter()
-        adapter = GenericRoboTwinTaskAdapter(
-            task_name=base.task_name,
-            official_source=base.official_source,
-            official_class=base.official_class,
-            task_schema=base.task_schema,
-            documentation_paths=base.documentation_paths,
-            asset_paths=base.asset_paths,
-            hooks=GenericTaskGenHooks(
-                validate_methods=base.hooks.validate_methods,
-                build_module=base.hooks.build_module,
-                preflight_candidate=failing_preflight,
-                resolve_metric=base.hooks.resolve_metric,
-                resolve_checker_contract=(
-                    base.hooks.resolve_checker_contract
-                ),
-                prompt_constraints=base.hooks.prompt_constraints,
-            ),
-        )
-        response = {
-            "load_actors": (
-                "def load_actors(self):\n"
-                '    self.target = "generated"\n'
-            ),
-            "check_success": (
-                "def check_success(self):\n"
-                '    return self.target == "generated"\n'
-            ),
-        }
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            _write_cold_task_repo(root)
-            with self.assertRaises(GenericTaskGenError):
-                GenericRoboTwinTaskGenBackend(
-                    root,
-                    _Provider([response, response]),
-                    model="fixture-model",
-                ).materialize(
-                    _candidate(),
-                    adapter,
-                    run_id="run_preflight_exception_count",
-                )
-            summary = json.loads(
-                (
-                    root
-                    / "mea/generated_task_attempts/"
-                    "run_preflight_exception_count/"
-                    "task_generation_result.json"
-                ).read_text(encoding="utf-8")
-            )
-
-        self.assertEqual(summary["runtime"]["provider_calls"], 2)
-        self.assertEqual(
-            summary["generation"]["failure"]["stage"],
-            "task_generation",
-        )
-        self.assertEqual(
-            summary["generation"]["failure"]["failure_kind"],
-            "unclassified_exception",
-        )
-
-    def _cold_checker_repair_diagnosis_includes_terminal_xyz_state(self) -> None:
-        initial_tcp = robot_tcp_xyz_summary(
-            SimpleNamespace(
-                robot=SimpleNamespace(
-                    get_left_tcp_pose=lambda: [0.01, -0.02, 0.78, 1.0],
-                )
-            )
-        )
-        terminal_tcp = robot_tcp_xyz_summary(
-            SimpleNamespace(
-                robot=SimpleNamespace(
-                    get_left_tcp_pose=lambda: [0.11, -0.02, 0.74, 1.0],
-                    get_right_tcp_pose=lambda: [0.03, 0.04, 0.75, 1.0],
-                )
-            )
-        )
-        diagnosis = _checker_fixture_failure_diagnosis(
-            [
-                {
-                    "fixture_id": "official_expert_terminal_positive",
-                    "expected": True,
-                    "observed": False,
-                    "passed": False,
-                }
-            ],
-            setup={
-                "tracked_actors": [
-                    {"id": "target", "position": [0.1, -0.2, 0.74]}
-                ],
-                "initial_robot_tcp_xyz_m": initial_tcp,
-            },
-            expert={
-                "expert_terminal_tracked_actors": [
-                    {"id": "target", "position": [0.12, -0.2, 0.85]}
-                ],
-                "expert_terminal_robot_tcp_xyz_m": terminal_tcp,
-            },
-        )
-
-        self.assertIn('"initial_actor_xyz_m"', diagnosis)
-        self.assertIn('"expert_terminal_actor_xyz_m"', diagnosis)
-        self.assertIn('"target": [0.12, -0.2, 0.85]', diagnosis)
-        self.assertIn('"initial_robot_tcp_xyz_m"', diagnosis)
-        self.assertIn('"expert_terminal_robot_tcp_xyz_m"', diagnosis)
-        self.assertIn('"right": [0.03, 0.04, 0.75]', diagnosis)
 
     def test_partial_generation_reuses_unrequested_official_method(
         self,

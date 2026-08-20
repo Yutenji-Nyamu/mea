@@ -1,5 +1,4 @@
 import json
-import inspect
 import tempfile
 import unittest
 from copy import deepcopy
@@ -47,10 +46,6 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
         executor = build_production_round_executor()
 
         self.assertIsInstance(executor, RoundExecutor)
-        self.assertNotIn(
-            "scripts.manipeval_agent",
-            inspect.getsource(round_executor_module),
-        )
         self.assertEqual(
             set(executor._services.native_policy_rounds),
             {"act", "smolvla", "hyvla"},

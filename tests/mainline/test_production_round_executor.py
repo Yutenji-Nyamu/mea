@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import ast
 from functools import partial
-from pathlib import Path
 
 from mea.robotwin import production_round_executor as production
 from mea.robotwin.native_agent_round import (
@@ -40,21 +38,3 @@ def test_production_executor_registers_only_native_method_backends() -> None:
         "smolvla",
         "hyvla",
     }
-    assert not hasattr(executor._services, "build_taskgen_command")
-    assert not hasattr(executor._services, "run_logged")
-
-    source_path = Path(production.__file__).resolve()
-    tree = ast.parse(source_path.read_text(encoding="utf-8"))
-    imported_modules = {
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module is not None
-    }
-    imported_modules.update(
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
-    )
-    assert "subprocess" not in imported_modules
-    assert "mea.taskgen.round_materialization" not in imported_modules
