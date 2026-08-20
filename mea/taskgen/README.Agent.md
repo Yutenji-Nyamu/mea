@@ -15,6 +15,12 @@
   smallest measurable change from the retrieved spawn/workspace range, stay
   away from its boundary, and keep every key actor fully in the unchanged
   camera view.
+- For a same-seed pose delta, keep the official sampling and rejection loop
+  unchanged, then apply the Proposal delta exactly once to its accepted pose.
+  Do not add or tighten a retry loop to force the shifted pose back into the
+  official spawn distribution. If the requested delta cannot be realized at
+  the current seed, let finite simulator validation reject it instead of
+  resampling indefinitely.
 - Do not import or access files, network, environment variables, processes,
   dynamic execution, dunder attributes, or `super()`.
 - Use wrapper-provided `np`, `sapien`, `create_actor`, `create_box`, and

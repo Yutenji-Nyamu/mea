@@ -12,6 +12,7 @@ from typing import Any
 
 CommandRunner = Callable[..., int]
 JsonWriter = Callable[[Path, Any], None]
+TASKGEN_PROBE_TIMEOUT_SECONDS = 300
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -24,14 +25,25 @@ def _write_json(path: Path, value: Any) -> None:
 def run_command(command: list[str], *, cwd: Path, log_path: Path) -> int:
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as log:
-        process = subprocess.run(
-            command,
-            cwd=cwd,
-            text=True,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            check=False,
-        )
+        try:
+            process = subprocess.run(
+                command,
+                cwd=cwd,
+                text=True,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                check=False,
+                timeout=TASKGEN_PROBE_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            log.write(
+                "TaskGen simulator probe exceeded "
+                f"{TASKGEN_PROBE_TIMEOUT_SECONDS} seconds.\n"
+            )
+            raise TimeoutError(
+                "TaskGen simulator probe exceeded "
+                f"{TASKGEN_PROBE_TIMEOUT_SECONDS} seconds"
+            ) from exc
     return process.returncode
 
 

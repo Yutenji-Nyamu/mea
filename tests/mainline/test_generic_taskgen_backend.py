@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Mapping
+from unittest.mock import patch
 
 from mea.planner.experiment_candidate import build_experiment_candidate
 from mea.planner.semantic_coverage import build_evaluation_intent
@@ -32,7 +34,11 @@ from mea.taskgen.provider_scene_checker import (
     run_provider_codegen,
     validate_method_ast,
 )
-from mea.taskgen.probe_runtime import _write_json as _write_probe_json
+from mea.taskgen.probe_runtime import (
+    TASKGEN_PROBE_TIMEOUT_SECONDS,
+    _write_json as _write_probe_json,
+    run_command as run_probe_command,
+)
 from mea.taskgen.preservation_facts import (
     PreservationFactError,
     normalize_preservation_conditions,
@@ -68,6 +74,34 @@ def _preservation(
 
 
 class ProbeRuntimeContractTests(unittest.TestCase):
+    def test_probe_process_timeout_is_bounded_and_reported(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path = Path(temp_dir) / "probe.log"
+            with patch(
+                "mea.taskgen.probe_runtime.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(
+                    cmd=["python", "-m", "mea.taskgen.probe"],
+                    timeout=TASKGEN_PROBE_TIMEOUT_SECONDS,
+                ),
+            ) as execute, self.assertRaisesRegex(
+                TimeoutError,
+                f"exceeded {TASKGEN_PROBE_TIMEOUT_SECONDS} seconds",
+            ):
+                run_probe_command(
+                    ["python", "-m", "mea.taskgen.probe"],
+                    cwd=Path(temp_dir),
+                    log_path=log_path,
+                )
+
+            self.assertEqual(
+                execute.call_args.kwargs["timeout"],
+                TASKGEN_PROBE_TIMEOUT_SECONDS,
+            )
+            self.assertIn(
+                f"exceeded {TASKGEN_PROBE_TIMEOUT_SECONDS} seconds",
+                log_path.read_text(encoding="utf-8"),
+            )
+
     def test_probe_json_writer_emits_json_whitespace_not_literal_escape(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output = Path(temp_dir) / "probe.json"
@@ -291,6 +325,60 @@ class _Provider:
 
 
 class ProviderSceneCheckerRepairTests(unittest.TestCase):
+    def test_generated_setup_timeout_triggers_one_candidate_regeneration(self):
+        responses = [
+            {
+                "load_actors": (
+                    "def load_actors(self):\n"
+                    f'    self.target = "attempt_{index}"\n'
+                ),
+                "check_success": (
+                    "def check_success(self):\n"
+                    "    return True\n"
+                ),
+            }
+            for index in (1, 2)
+        ]
+        validations = 0
+
+        def validate(_methods: Mapping[str, str]) -> dict[str, Any]:
+            nonlocal validations
+            validations += 1
+            if validations == 1:
+                raise GenericTaskGenError(
+                    "generated setup probe failed: TaskGen simulator probe "
+                    f"exceeded {TASKGEN_PROBE_TIMEOUT_SECONDS} seconds",
+                    runtime={"simulator_probes": 1},
+                )
+            return {
+                "schema_version": 1,
+                "checker_fixtures": [],
+                "preflight": {"simulator_probes": 1},
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            provider = _Provider(responses)
+            generated = run_provider_codegen(
+                attempt_root=Path(temp_dir) / "attempts",
+                proposal={"task_name": "fixture"},
+                prompt="generate methods",
+                provider=provider,
+                model="fixture-model",
+                validate=validate,
+                error_type=GenericTaskGenError,
+                max_regenerations=1,
+            )
+
+        result = generated["generation_result"]
+        self.assertEqual(provider.calls, 2)
+        self.assertEqual(result["generation"]["status"], "failed")
+        self.assertEqual(result["repair"]["action"], "regenerate_candidate")
+        self.assertEqual(result["repair"]["status"], "accepted")
+        self.assertIn(
+            f"exceeded {TASKGEN_PROBE_TIMEOUT_SECONDS} seconds",
+            provider.prompts[1],
+        )
+
     def test_preservation_failure_is_typed_and_keeps_probe_runtime(self):
         responses = [
             {

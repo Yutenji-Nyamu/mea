@@ -451,22 +451,29 @@ def create_generic_provider_taskgen_run(
             preflight_runtime["simulator_probes"] += 1
         official_setup = official_control["setup"]
         setup_image = attempt_dir / "setup_head.png"
-        setup = probe_runner(
-            repo_root,
-            attempt_dir,
-            probe_manifest,
-            seed=seed,
-            expert=False,
-            scene_json=attempt_dir / "setup_preflight.json",
-            image=setup_image,
-            log_path=attempt_dir / "setup_preflight.log",
-            telemetry_profile=telemetry_profile,
-            **(
-                {"task_context": task_context_path}
-                if task_context_path is not None
-                else {}
-            ),
-        )
+        try:
+            setup = probe_runner(
+                repo_root,
+                attempt_dir,
+                probe_manifest,
+                seed=seed,
+                expert=False,
+                scene_json=attempt_dir / "setup_preflight.json",
+                image=setup_image,
+                log_path=attempt_dir / "setup_preflight.log",
+                telemetry_profile=telemetry_profile,
+                **(
+                    {"task_context": task_context_path}
+                    if task_context_path is not None
+                    else {}
+                ),
+            )
+        except TimeoutError as exc:
+            preflight_runtime["simulator_probes"] += 1
+            raise GenericTaskGenError(
+                f"generated setup probe failed: {exc}",
+                runtime=preflight_runtime,
+            ) from exc
         preflight_runtime["simulator_probes"] += 1
         requested_delta_report = _requested_position_delta_report(
             candidate,
