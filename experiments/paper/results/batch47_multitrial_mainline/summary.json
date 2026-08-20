@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "evaluation_id": "eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v5",
+  "run_revision": "f03a93a19d0d561c21eac4284f1a7a851b5fc485",
+  "status": "completed",
+  "task": "move_playingcard_away",
+  "policy": "SmolVLA",
+  "checkpoint": "/root/autodl-tmp/checkpoints/robotwin/smolvla_robotwin",
+  "checkpoint_revision": "967623a0f38c7e1236c66b3893c830398d793ff7",
+  "query_kind": "anchor_free_broad_existential_with_required_evidence_conditioned_follow_up",
+  "history": "disabled",
+  "execution_vqa": "not_requested",
+  "round_cap": 5,
+  "episodes_per_round": 5,
+  "completed_rounds": 3,
+  "completed_policy_episodes": 15,
+  "seeds": [1000, 1001, 1002, 1003, 1004],
+  "failed_attempt_policy_episodes": 25,
+  "rounds": [
+    {
+      "round_id": "round_1",
+      "candidate_id": "task_execution.official_baseline",
+      "scene_delta": null,
+      "official_success_count": 5,
+      "official_trial_count": 5,
+      "official_success_rate": 1.0,
+      "rule_requested": false,
+      "next_action": "continue_with_playingcards_x_plus_0.05_m"
+    },
+    {
+      "round_id": "round_2",
+      "candidate_id": "dynamic.move_playingcard_away.round_2",
+      "scene_delta": {
+        "actor": "playingcards",
+        "property": "position",
+        "axis": "x",
+        "signed_delta_m": 0.05,
+        "reference": "same_seed_official_reset",
+        "materialization_anchor_seed": 1000,
+        "observed_anchor_signed_delta_m": 0.049999999999999996
+      },
+      "official_success_count": 4,
+      "official_trial_count": 5,
+      "official_success_rate": 0.8,
+      "rule": {
+        "status": "passed",
+        "metric": "minimum_terminal_abs_playingcards_x",
+        "route": "provider_python_codegen",
+        "values_by_seed_m": {
+          "1000": 0.0044442894868552685,
+          "1001": 0.3924521803855896,
+          "1002": 0.3585694432258606,
+          "1003": 0.3417743742465973,
+          "1004": 0.3072650730609894
+        }
+      },
+      "taskgen": {
+        "route": "generic_provider_scene_checker_codegen",
+        "provider_calls": 1,
+        "provider_retry_count": 0,
+        "local_repairs": 0,
+        "checker_fixtures": "2/2",
+        "vision_passed": true,
+        "expert_passed": true,
+        "preservation": "verified"
+      },
+      "next_action": "continue_with_total_playingcards_x_plus_0.10_m"
+    },
+    {
+      "round_id": "round_3",
+      "candidate_id": "dynamic.move_playingcard_away.round_3",
+      "scene_delta": {
+        "actor": "playingcards",
+        "property": "position",
+        "axis": "x",
+        "signed_delta_m": 0.1,
+        "reference": "same_seed_official_reset",
+        "materialization_anchor_seed": 1000,
+        "observed_anchor_signed_delta_m": 0.09999999999999999
+      },
+      "official_success_count": 4,
+      "official_trial_count": 5,
+      "official_success_rate": 0.8,
+      "rule": {
+        "status": "passed",
+        "metric": "terminal_absolute_playingcards_x",
+        "route": "semantic_library_reuse",
+        "values_by_seed_m": {
+          "1000": 0.03608924522995949,
+          "1001": 0.23058567941188812,
+          "1002": 0.3142021894454956,
+          "1003": 0.2662363648414612,
+          "1004": 0.33652064204216003
+        }
+      },
+      "taskgen": {
+        "route": "generic_provider_scene_checker_codegen",
+        "provider_calls": 1,
+        "provider_retry_count": 1,
+        "local_repairs": 0,
+        "checker_fixtures": "2/2",
+        "vision_passed": true,
+        "expert_passed": true,
+        "preservation": "verified"
+      },
+      "next_action": "stop"
+    }
+  ],
+  "provider_retry_events": [
+    {
+      "stage": "plan_after_round_1",
+      "retry_count": 1
+    },
+    {
+      "stage": "taskgen_round_3",
+      "retry_count": 1
+    }
+  ],
+  "answer": "Yes. For this SmolVLA checkpoint, move_playingcard_away task, and seeds 1000 through 1004, bounded positive playingcards x offsets of +0.05 m and +0.10 m from the same-seed official resets were executable, scene-aligned, expert-solvable, and reduced unchanged official check_success from 5/5 in control to 4/5. This supports existence of a measured weakness within the completed seed group, not a broader generalization claim.",
+  "answer_scope": {
+    "sample_count": 15,
+    "seeds": [1000, 1001, 1002, 1003, 1004],
+    "tested_candidate_ids": [
+      "dynamic.move_playingcard_away.round_2",
+      "dynamic.move_playingcard_away.round_3"
+    ],
+    "untested_candidate_ids": [],
+    "evidence_conflict": false,
+    "termination": "agent_stop",
+    "claim_verdict": "supported",
+    "evidence_sufficient": true
+  },
+  "claim_boundary": "Supported only for this checkpoint, task, one predeclared five-seed group, and 15 completed episodes. TaskGen preflight was anchored at seed 1000; no cross-group, cross-task, VQA, backend-comparison, or statistical-generalization claim.",
+  "canonical_evaluation_path": "/root/autodl-tmp/mea-worktrees/evidence-refinement-runtime/mea/evaluation_runs/eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v5",
+  "canonical_log_path": "/root/autodl-tmp/mea-logs/batch47_move_playingcard_anchorfree_m5_s1000_v5"
+}

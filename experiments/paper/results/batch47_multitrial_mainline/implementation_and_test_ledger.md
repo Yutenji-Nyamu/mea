@@ -209,3 +209,70 @@ PYTHONPATH=. /root/autodl-tmp/envs/mea-libero/bin/python -m pytest -q tests/main
 Results: `3 passed`; then `231 passed, 28 subtests passed`. Both commands ran
 on AutoDL. No test, import, compilation, simulator, provider, or policy command
 ran on Windows PC.
+
+## 2026-08-20 — completed v5 live evaluation and final audit
+
+The provider credential was injected only into the auth-probe and launch
+processes. A Terra text probe returned AUTH_OK with retry_count=0 before
+launch. The frozen package retained the same Query, checkpoint, paired seeds
+1000..1004, M=5, no-history setting, no-VQA instruction, five-round allowance,
+and 7200-second wall bound. Only the new evaluation ID and repaired revision
+changed:
+
+~~~text
+eval_20260820_batch47_move_playingcard_anchorfree_m5_s1000_v5
+f03a93a19d0d561c21eac4284f1a7a851b5fc485
+~~~
+
+Launch command:
+
+~~~bash
+bash /root/autodl-tmp/run-packages/
+  batch47_move_playingcard_anchorfree_m5_s1000_v5/launch.sh
+~~~
+
+The launcher verified HEAD=origin/main at the expected revision, a clean
+tracked worktree, a new output/log directory, a bindable port 18771, the
+resolved JSON configuration, and shell syntax before starting. Result:
+agent exit 0, manifest status=completed, lifecycle_status=completed, no failure
+stage, and three completed child runs.
+
+The completed evidence chain was:
+
+1. official control: exact seeds 1000..1004, 5/5 success, one aggregate;
+2. fresh same-seed playingcards x +0.05 m Task: observed anchor delta
+   0.049999999999999996 m, 4/5 success, and five finite
+   minimum_terminal_abs_playingcards_x results;
+3. after reading that 5/5 to 4/5 change and the Rule range, Plan proposed a
+   total playingcards x +0.10 m follow-up; the fresh Task observed
+   0.09999999999999999 m at the anchor seed, again produced 4/5 success, and
+   returned five finite terminal_absolute_playingcards_x results.
+
+Plan then stopped with supported/evidence_sufficient=true while two candidate
+round allowances remained. Its Answer is byte-for-byte identical across the
+query-answer file, evidence bundle, final answer, and top-level manifest.
+Structured scope is sample_count=15, seeds 1000..1004, two tested candidates,
+no conflict, termination=agent_stop.
+
+The final assertion audit checked every summary and child manifest:
+
+- requested=actual seeds 1000..1004 in all three rounds;
+- five episode results and five MethodRuntime rollouts per child;
+- materialization_anchor_seed=1000 and aggregate unique_episode_count=5;
+- each requested Rule contains exactly five seed-indexed results;
+- total_policy_episodes=15;
+- full ordered evidence history is present in each next Plan prompt and the
+  bound Proposal equals the materialized next-round Proposal;
+- final Answer, verdict, stop, sample count, and seed group agree in all
+  published artifacts.
+
+Result: mechanical_audit=passed. The same scan found 44 retry_count=0 artifact
+copies and two distinct logical calls with retry_count=1 (duplicated in their
+transport copies): Plan after round 1 and TaskGen round 3. Thus the bounded
+provider repair was exercised in the successful run. After completion the
+Agent, supervisor, and policy server had exited, port 18771 was free, and
+AutoDL HEAD/origin remained aligned with a clean tracked worktree.
+
+Scientific accounting remains separate: v5 contributes 15 completed episodes.
+The immutable failed attempts consumed 25 additional diagnostic episodes
+(v1=0, v2=5, v3=5, v4=15) that are not included in v5's sample.

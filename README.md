@@ -34,13 +34,14 @@ unset UIUI_API_KEY
 Outputs are written to `mea/evaluation_runs/<evaluation-id>`. Verified AutoDL
 examples demonstrate two bounded outcomes of the method loop:
 
-- Historical `M=1` mechanism proof: [`move_playingcard_away` Batch46](experiments/paper/results/batch46_move_playingcard_anchorfree_adaptive/README.md):
-  anchor-free Query → successful control → `y +0.05 m` failure →
-  evidence-conditioned `y +0.025 m` failure → live Rule → supported Answer and
-  Agent stop in three policy episodes. It does not establish a stable rate.
-- Historical `M=1` exploration: [`press_stapler` Batch37](docs/evidence/current/README.md): control plus nine
-  generated rollouts and Rule evidence, followed by an active, scoped
-  inconclusive Answer after information saturation (ten episodes, one seed).
+- Current `M=5` mainline: [`move_playingcard_away` Batch47](experiments/paper/results/batch47_multitrial_mainline/README.md):
+  paired five-seed control `5/5` → generated `x +0.05 m` `4/5` → evidence-conditioned
+  `x +0.10 m` `4/5` → five-trial Rule evidence → supported Answer and Agent stop
+  in 15 policy episodes.
+- Historical wider `M=1` exploration: [`press_stapler` Batch37](docs/evidence/current/README.md):
+  control plus nine generated rollouts and Rule evidence, followed by an active,
+  scoped inconclusive Answer after information saturation. It is a mechanism
+  example, not stable policy evidence.
 
 Start from the [Chinese documentation index](docs/index_zh.md); use the
 [running guide](docs/running_guide_zh.md) for commands and outputs.
