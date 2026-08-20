@@ -1,6 +1,6 @@
 # ManipEvalAgent 文档
 
-根 `README.md` 只保留项目定位、唯一生产入口和本索引，不承载运行命令或实验日志。
+根 `README.md` 只保留项目定位、唯一生产入口、最小运行示例和本索引，不承载实验日志。
 当前文档只保留以下入口：
 
 - [架构与干净数据流](architecture_and_dataflow_zh.md)：`--auto-route` 开放 Query 的
