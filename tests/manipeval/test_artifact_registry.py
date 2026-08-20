@@ -86,6 +86,27 @@ class ArtifactRegistryTests(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactRegistryError, "JSON list"):
             self.registry.entries()
 
+    def test_explicit_legacy_index_is_not_implicitly_migrated(self):
+        self.index_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "kind": "task",
+                        "semantic_key": {"base_task": "adjust_bottle"},
+                        "artifact_path": "runs/legacy/manifest.json",
+                        "source_query": "historical query",
+                        "validation": {"status": "validated"},
+                        "reuse_count": 2,
+                    }
+                ]
+            ),
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            ArtifactRegistryError, "entry fields are invalid"
+        ):
+            self.registry.entries()
+
 
 if __name__ == "__main__":
     unittest.main()

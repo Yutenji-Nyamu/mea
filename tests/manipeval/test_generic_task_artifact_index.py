@@ -25,6 +25,43 @@ def _semantic_key() -> dict:
 
 
 class GenericTaskArtifactIndexTests(unittest.TestCase):
+    def test_default_semantic_index_does_not_parse_or_rewrite_legacy_index(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifacts = root / "mea/artifacts"
+            artifacts.mkdir(parents=True)
+            legacy_path = artifacts / "index.json"
+            legacy_bytes = json.dumps(
+                [
+                    {
+                        "kind": "task",
+                        "semantic_key": _semantic_key(),
+                        "artifact_path": (
+                            "mea/generated_tasks/legacy/manifest.json"
+                        ),
+                        "source_query": "historical query",
+                        "validation": {"status": "validated"},
+                        "reuse_count": 3,
+                    }
+                ],
+                indent=2,
+            ).encode("utf-8")
+            legacy_path.write_bytes(legacy_bytes)
+
+            index = GenericTaskArtifactIndex(root)
+
+            self.assertEqual(
+                index.registry.index_path,
+                artifacts / "task_semantic_index.json",
+            )
+            self.assertIsNone(
+                index.find_exact(
+                    {"schema_version": 2, "semantic_key": _semantic_key()}
+                )
+            )
+            self.assertEqual(legacy_path.read_bytes(), legacy_bytes)
+            self.assertFalse(index.registry.index_path.exists())
+
     def test_register_find_and_materialize_clean_reuse_envelope(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

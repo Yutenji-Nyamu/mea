@@ -109,7 +109,7 @@ class GenericTaskArtifactIndex:
         self.registry = ArtifactRegistry(
             Path(index_path).expanduser().resolve()
             if index_path is not None
-            else self.repo_root / "mea/artifacts/index.json"
+            else self.repo_root / "mea/artifacts/task_semantic_index.json"
         )
 
     def find_exact(
