@@ -272,7 +272,6 @@ def publish_round_evidence(
         or child_manifest.get("mode"),
         "execution_backend": observations.get("execution_backend"),
         "seeds": (round_plan.get("execution") or {}).get("seeds"),
-        "pipeline_passed": round_summary.get("pipeline_passed"),
         "policy_success": observations.get("policy_success"),
         "tool_metric": (tool.get("tool_request") or {}).get("metric"),
         "tool_route": tool.get("route"),

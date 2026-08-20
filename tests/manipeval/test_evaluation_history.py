@@ -26,7 +26,6 @@ def round_evidence(round_id: str, candidate_id: str, seed: int) -> dict:
         "schema_version": 1,
         "round_id": round_id,
         "candidate_id": candidate_id,
-        "pipeline": {"passed": True, "failure_stage": None},
         "planning_observation": None,
         "policy": {
             "success_rate": 1.0,
@@ -145,7 +144,7 @@ class EvaluationHistoryTests(unittest.TestCase):
             record = build_history_record(root, evaluation)
             self.assertEqual(record["evaluation_id"], "eval_blue")
             self.assertEqual(record["policy"]["name"], "ACT")
-            self.assertTrue(record["outcome"]["pipeline_passed"])
+            self.assertNotIn("pipeline_passed", record["outcome"])
             self.assertFalse(record["outcome"]["evidence_conflict"])
             self.assertEqual(
                 record["compatibility"]["evidence_schema_version"], 3

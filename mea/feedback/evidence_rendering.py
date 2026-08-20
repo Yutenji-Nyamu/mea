@@ -172,8 +172,7 @@ def render_round(
             "",
             f"- Backend/seeds: `{compact['execution_backend']}` / "
             f"`{compact['seeds']}`",
-            f"- Pipeline/policy success: `{compact['pipeline_passed']}` / "
-            f"`{compact['policy_success']}`",
+            f"- Policy success: `{compact['policy_success']}`",
         ]
     )
     if video_copy:
@@ -273,7 +272,7 @@ def render_final(
         ),
         "## 6. Boundaries",
         "",
-        "- Policy results and pipeline status are reported separately.",
+        "- Task, policy, Rule, and VQA facts are reported separately.",
         "- Expert evidence, when present, is a solvability/instrumentation "
         "gate, not evaluated-policy performance.",
         "- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level "

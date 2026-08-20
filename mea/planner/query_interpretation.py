@@ -11,8 +11,6 @@ import re
 from copy import deepcopy
 from typing import Any, Mapping
 
-from mea.artifact_retrieval_index import resolve_task_retrieval_index
-
 from .plan_agent_schema import validate_open_query_plan_proposal
 from .experiment_candidate import build_experiment_candidate
 from .open_task_resolver import (
@@ -25,6 +23,9 @@ from .policy_task_binding import (
     policy_task_binding_from_target,
 )
 from .semantic_coverage import build_evaluation_intent, validate_evaluation_intent
+
+
+OFFICIAL_CONTROL_TEMPLATE_ID = "task_execution.official_baseline"
 
 
 def build_initial_semantic_proposal_bundle(
@@ -234,42 +235,6 @@ def _target_task_name(target: Mapping[str, Any]) -> str:
     return _nonempty_text(target.get("task_name"), "target.task_name")
 
 
-def control_template_id(target: Mapping[str, Any]) -> str:
-    """Return the trusted official-scene control for a bound task."""
-
-    task_name = _target_task_name(target)
-    retrieval_index = resolve_task_retrieval_index(
-        task_name,
-        allow_unregistered=True,
-    )
-    template_id = retrieval_index["control_template_id"]
-    if "policy_task_binding" in target:
-        return template_id
-    available = {
-        str(item)
-        for aspect in target.get("aspects", [])
-        if isinstance(aspect, Mapping)
-        for item in aspect.get("template_ids", [])
-    }
-    if template_id not in available:
-        # Cached plans and older test fixtures may predate the neutral
-        # official-baseline contract.  Keep them readable by accepting only an
-        # already-bound unchanged-scene passthrough; newly built targets always
-        # expose ``task_execution.official_baseline``.
-        legacy_controls = [
-            contract["template_id"]
-            for contract in retrieval_index["entries"]
-            if contract["template_id"] in available
-            and contract["taskgen"]["operation"] == "official_passthrough"
-        ]
-        if len(legacy_controls) == 1:
-            return legacy_controls[0]
-        raise PlanAgentSessionError(
-            f"control template {template_id!r} is outside the bound task"
-        )
-    return template_id
-
-
 def resolve_concern_candidate_domain(
     concern: Mapping[str, Any],
     *,
@@ -343,8 +308,8 @@ def resolve_concern_candidate_domain(
 
 
 __all__ = [
+    "OFFICIAL_CONTROL_TEMPLATE_ID",
     "build_dynamic_experiment_candidate",
     "build_initial_semantic_proposal_bundle",
-    "control_template_id",
     "resolve_concern_candidate_domain",
 ]

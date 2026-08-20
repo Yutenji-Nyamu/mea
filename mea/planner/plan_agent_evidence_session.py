@@ -58,13 +58,9 @@ def _baseline_passed(record: Mapping[str, Any]) -> bool:
         semantics.get("status"),
     )
     authority_valid = official_identity in _VALID_OFFICIAL_BASELINE_IDENTITIES
-    pipeline_valid = bool(
-        evidence["pipeline"]["passed"]
-        and policy["success_rate"] is not None
-    )
     return bool(
         authority_valid
-        and pipeline_valid
+        and policy["success_rate"] is not None
         and record["candidate_evidence"]["outcome"] == "pass"
         and float(policy["success_rate"]) >= 1.0
     )

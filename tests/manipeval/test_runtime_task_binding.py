@@ -128,7 +128,11 @@ class RuntimeTaskBindingTests(unittest.TestCase):
         )
         session = OpenWorldPlanSession.from_target(target)
         self.assertEqual(session.task_name, "novel_task")
-        self.assertEqual(session.retrieval_aspects, [])
+        self.assertEqual(
+            session.control_template_id,
+            "task_execution.official_baseline",
+        )
+        self.assertFalse(hasattr(session, "retrieval_aspects"))
 
     def test_missing_checkpoint_artifact_fails_closed(self):
         (

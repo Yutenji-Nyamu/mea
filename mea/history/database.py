@@ -406,20 +406,6 @@ def build_history_record(
         if isinstance(evidence_rounds, list)
         else []
     )
-    policy_rounds = [
-        item
-        for item in typed_rounds
-        if item.get("planning_observation") is None
-    ]
-    pipeline_passed = (
-        all(
-            isinstance(item.get("pipeline"), Mapping)
-            and item["pipeline"].get("passed") is True
-            for item in policy_rounds
-        )
-        if policy_rounds
-        else None
-    )
     evidence_conflict = any(
         (
             isinstance(item.get("vqa"), Mapping)
@@ -457,7 +443,6 @@ def build_history_record(
         },
         "outcome": {
             "status": manifest.get("status"),
-            "pipeline_passed": pipeline_passed,
             "evidence_conflict": evidence_conflict,
         },
         "compatibility": {

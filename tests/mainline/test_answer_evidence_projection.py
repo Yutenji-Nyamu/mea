@@ -21,7 +21,6 @@ def _evidence():
                 "schema_version": 1,
                 "round_id": "round_1",
                 "candidate_id": "dynamic.alpha",
-                "pipeline": {"passed": True, "failure_stage": None},
                 "planning_observation": None,
                 "policy": {
                     "success_rate": 0.0,

@@ -71,7 +71,6 @@ def render_evaluation_report(
     for item in evidence.get("rounds", []):
         if not isinstance(item, Mapping):
             continue
-        pipeline = item.get("pipeline") or {}
         policy = item.get("policy") or {}
         rule = item.get("rule") or {}
         vqa = item.get("vqa") or {}
@@ -79,8 +78,6 @@ def render_evaluation_report(
         round_sections.append(
             f"""### {item.get('round_id')}: {item.get('candidate_id')}
 
-- pipeline passed: {pipeline.get('passed')}
-- failure stage: {pipeline.get('failure_stage')}
 - policy metric: {policy.get('metric')}
 - policy authority: {policy.get('authority')}
 - policy success rate: {policy.get('success_rate')}

@@ -17,8 +17,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from mea.artifact_retrieval_index import resolve_task_retrieval_index
-
 from .context import build_planning_context
 from .experiment_candidate import (
     ExperimentCandidateError,
@@ -34,6 +32,7 @@ from .policy_task_binding import (
     PolicyTaskBindingError,
     policy_task_binding_from_target,
 )
+from .query_interpretation import OFFICIAL_CONTROL_TEMPLATE_ID
 
 
 class OpenWorldSessionError(ValueError):
@@ -58,32 +57,6 @@ def _positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise OpenWorldSessionError(f"{field} must be a positive integer")
     return value
-
-
-def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
-    """Project legacy capability contracts into non-authoritative hints."""
-
-    retrieval_index = resolve_task_retrieval_index(
-        task_name,
-        allow_unregistered=True,
-    )
-    grouped: dict[str, dict[str, Any]] = {}
-    for contract in retrieval_index["entries"]:
-        aspect = contract["aspect"]
-        aspect_id = str(aspect["aspect_id"])
-        entry = grouped.setdefault(
-            aspect_id,
-            {
-                "aspect_id": aspect_id,
-                "description": (
-                    "Retrieval hint for "
-                    f"{aspect['semantic_scope']} / {aspect['target_role']}."
-                ),
-                "template_ids": [],
-            },
-        )
-        entry["template_ids"].append(str(contract["template_id"]))
-    return [deepcopy(grouped[key]) for key in sorted(grouped)]
 
 
 def validate_open_world_evaluation_target(
@@ -139,11 +112,7 @@ class _FrozenExecutionTransport:
         self.task_name = self.binding["task_name"]
         self.policy = self.binding["policy"]
         self.checkpoint = self.binding["checkpoint"]
-        self.control_template_id = resolve_task_retrieval_index(
-            self.task_name,
-            allow_unregistered=True,
-        )["control_template_id"]
-        self.retrieval_aspects = _retrieval_aspects(self.task_name)
+        self.control_template_id = OFFICIAL_CONTROL_TEMPLATE_ID
         self._control_round: dict[str, Any] | None = None
         self._runtime_limits: dict[str, Any] | None = None
         if runtime_limits is not None:
@@ -166,8 +135,8 @@ class _FrozenExecutionTransport:
         """Start from an already frozen runtime binding.
 
         This is the production constructor.  It keeps task/checkpoint discovery
-        outside the Plan session and makes the catalog a retrieval concern
-        rather than a planning or execution authorization boundary.
+        outside the Plan session; later candidates are authorized by their
+        typed Proposal rather than a predeclared task menu.
         """
 
         return cls(
@@ -425,17 +394,12 @@ class _FrozenExecutionTransport:
         return normalized
 
     def normalize_plan(self, plan: Mapping[str, Any]) -> dict[str, Any]:
-        """Normalize one plan while keeping catalog and runtime concerns apart."""
+        """Normalize one plan inside the frozen runtime binding."""
 
         return self._normalize_plan(plan)
 
     def planning_context(self, repo_root: str | Path) -> dict[str, Any]:
-        """Return trusted retrieval context for the frozen base task.
-
-        The returned adapter templates are retrieval hints.  Open-world round
-        authorization is owned by typed Proposal validation here, not
-        by membership in that template list.
-        """
+        """Return trusted task/policy context for the frozen base task."""
 
         return build_planning_context(repo_root, self.target)
 

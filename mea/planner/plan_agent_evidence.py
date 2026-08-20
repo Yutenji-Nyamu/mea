@@ -6,8 +6,6 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
-from mea.artifact_retrieval_index import resolve_task_retrieval_index
-
 from .evidence_policy import (
     _GENERATED_POLICY_AUTHORITY,
     _OFFICIAL_POLICY_AUTHORITIES,
@@ -15,7 +13,10 @@ from .evidence_policy import (
 )
 from .plan_agent_schema import PlanAgentError, validate_open_query_evidence
 from .plan_agent_errors import PlanAgentSessionError
-from .query_interpretation import _nonempty_text
+from .query_interpretation import (
+    OFFICIAL_CONTROL_TEMPLATE_ID,
+    _nonempty_text,
+)
 
 
 def _policy_outcome_is_decidable(
@@ -61,23 +62,12 @@ def _round_candidate_id(round_plan: Mapping[str, Any]) -> str:
 def _uses_task_control_template(round_plan: Mapping[str, Any]) -> bool:
     """Recognize the bound task's unchanged official control artifact."""
 
-    task_name = round_plan.get("task_name")
     template_id = round_plan.get("template_id")
-    if (
-        not isinstance(task_name, str)
-        or not task_name.strip()
-        or not isinstance(template_id, str)
-        or not template_id.strip()
-    ):
-        return False
-    try:
-        retrieval_index = resolve_task_retrieval_index(
-            task_name.strip(),
-            allow_unregistered=True,
-        )
-    except ValueError:
-        return False
-    return template_id.strip() == retrieval_index["control_template_id"]
+    return bool(
+        round_plan.get("route") == "official"
+        and isinstance(template_id, str)
+        and template_id.strip() == OFFICIAL_CONTROL_TEMPLATE_ID
+    )
 
 
 def _round_artifact_refs(
@@ -242,8 +232,7 @@ def build_plan_agent_evidence_record(
         semantic_outcome = "ambiguous"
         candidate_outcome = "unknown"
     elif (
-        not evidence["pipeline"]["passed"]
-        or not rule_ready
+        not rule_ready
         or not vqa_ready
         or success_rate is None
     ):
@@ -302,15 +291,6 @@ def build_plan_agent_evidence_record(
     limitations = [
         "One bounded runtime round is not a statistical generalization estimate."
     ]
-    if not evidence["pipeline"]["passed"]:
-        limitations.append(
-            "The execution pipeline did not complete"
-            + (
-                f" at {evidence['pipeline']['failure_stage']}."
-                if evidence["pipeline"]["failure_stage"]
-                else "."
-            )
-        )
     if evidence["rule"]["requested"] and not rule_ready:
         limitations.append(
             "The requested Rule evidence did not produce a passed result set."
@@ -366,8 +346,10 @@ def build_plan_agent_evidence_record(
         else "[]"
     )
     summary_text = (
-        f"RoundEvidence pipeline_passed={evidence['pipeline']['passed']}; "
-        f"candidate_outcome={semantic_outcome}; "
+        f"RoundEvidence candidate_outcome={semantic_outcome}; "
+        f"taskgen_returncode={round_summary.get('taskgen_returncode')}; "
+        f"scene_alignment={observations.get('scene_alignment')}; "
+        f"expert_solvable={observations.get('expert_solvable')}; "
         f"success_predicate_metric={policy_outcome.get('metric')}; "
         f"success_predicate_value={policy_outcome.get('value')}; "
         f"success_predicate_authority={policy_outcome.get('authority')}; "
@@ -414,7 +396,6 @@ def build_plan_agent_evidence_record(
             planning_summary["bounded_repair_evidence"] = repair_evidence[-1:]
         failure_stage = str(
             planning_observation.get("failure_stage")
-            or round_summary.get("failure_stage")
             or ""
         )
         validation_label = (
@@ -514,7 +495,7 @@ def render_query_answer(
         untested = []
         limitations = [
             "No property attribution is allowed without a passing control.",
-            "The observed control result may reflect policy, simulator, or pipeline effects.",
+            "The observed control result may reflect policy, simulator, or execution effects.",
         ]
     else:
         answered = bool(assessment.get("evidence_sufficient"))

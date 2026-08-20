@@ -52,9 +52,9 @@ from .plan_agent_session import (
     PlanAgentSession,
 )
 from .query_interpretation import (
+    OFFICIAL_CONTROL_TEMPLATE_ID,
     build_dynamic_experiment_candidate,
     build_initial_semantic_proposal_bundle,
-    control_template_id,
     resolve_concern_candidate_domain,
 )
 from .claim_first_initial import (
@@ -113,7 +113,7 @@ __all__ = [
     "build_plan_agent_evidence_record",
     "build_dynamic_experiment_candidate",
     "build_initial_semantic_proposal_bundle",
-    "control_template_id",
+    "OFFICIAL_CONTROL_TEMPLATE_ID",
     "render_query_answer",
     "resolve_concern_candidate_domain",
     "PlanAgentInitialPlanBuilder",

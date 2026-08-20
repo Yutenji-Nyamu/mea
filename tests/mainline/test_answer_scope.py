@@ -24,7 +24,6 @@ def round_evidence(
         "schema_version": 1,
         "round_id": f"round_{seed}",
         "candidate_id": candidate_id,
-        "pipeline": {"passed": True, "failure_stage": None},
         "planning_observation": None,
         "policy": {
             "success_rate": success_rate,
@@ -145,18 +144,6 @@ class AnswerScopeTests(unittest.TestCase):
         self.assertEqual(scope["sample_count"], 2)
         self.assertEqual(scope["seeds"], [7])
 
-    def test_pipeline_fallback_reads_round_evidence(self):
-        value = evidence()
-        value.pop("plan_agent_session")
-        value["rounds"][0]["pipeline"] = {
-            "passed": False,
-            "failure_stage": "rollout",
-        }
-
-        scope = build_answer_scope(value)
-
-        self.assertEqual(scope["termination"], "pipeline_invalid")
-
     def test_scoped_answer_keeps_plan_text_and_structured_scope(self):
         value = evidence()
         query_answer = {
@@ -221,7 +208,6 @@ class AnswerScopeTests(unittest.TestCase):
         round_runs = [
             {
                 "round_summary": {
-                    "pipeline_passed": True,
                     "observations": {"planning_observation": None},
                 },
                 "child_manifest": {"run_id": "child_1"},

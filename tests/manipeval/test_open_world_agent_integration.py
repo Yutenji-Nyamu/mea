@@ -315,7 +315,7 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
         self.assertIn("--run-act", command)
         self.assertNotIn("--vision-check", command)
 
-    def test_generic_round_requires_generic_visual_diagnosis_not_legacy_gate(self):
+    def test_generic_round_reports_independent_stage_facts(self):
         candidate = _candidate()
         round_plan = {
             "round_id": "round_2",
@@ -418,9 +418,13 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
                 result,
             )
 
-        self.assertTrue(result["pipeline_passed"])
-        self.assertNotIn("gate_status", result)
-        self.assertTrue(result["required_gate_status"]["passed"])
+        self.assertNotIn("pipeline_passed", result)
+        self.assertNotIn("required_gate_status", result)
+        self.assertNotIn("capability_contract", result)
+        self.assertEqual(result["taskgen_returncode"], 0)
+        self.assertTrue(result["observations"]["scene_alignment"])
+        self.assertTrue(result["observations"]["expert_solvable"])
+        self.assertEqual(result["observations"]["policy_success"], 0.0)
         change = result["observations"]["scene_change"][
             "tracked_actor_changes"
         ][0]

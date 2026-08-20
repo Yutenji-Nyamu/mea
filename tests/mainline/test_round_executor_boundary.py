@@ -55,14 +55,14 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
         result = RoundExecutionResult(
             child_manifest={"status": "completed"},
             child_dir=Path("/tmp/child"),
-            round_summary={"pipeline_passed": True},
+            round_summary={"taskgen_returncode": 0},
             tool_evaluation={"status": "passed"},
             returncode=0,
         )
 
         self.assertEqual(result.child_manifest["status"], "completed")
         self.assertEqual(result.child_dir, Path("/tmp/child"))
-        self.assertTrue(result.round_summary["pipeline_passed"])
+        self.assertEqual(result.round_summary["taskgen_returncode"], 0)
         self.assertEqual(result.tool_evaluation["status"], "passed")
         self.assertEqual(result.returncode, 0)
 
@@ -236,10 +236,18 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                     self.assertEqual(
                         observations["method_runtime"]["status"], status
                     )
-                    self.assertEqual(
-                        result.round_summary["failure_stage"],
-                        scenario.get("failure_stage", "taskgen_expert_gate"),
-                    )
+                    if "failure_stage" in scenario:
+                        self.assertEqual(
+                            observations["planning_observation"][
+                                "failure_stage"
+                            ],
+                            scenario["failure_stage"],
+                        )
+                    else:
+                        self.assertNotIn(
+                            "failure_stage",
+                            observations["planning_observation"],
+                        )
                     self.assertEqual(
                         observations["outcome_semantics"]["reason_codes"],
                         [scenario["reason_code"]],
@@ -259,11 +267,11 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                         round_evidence["outcome_semantics"]["reason_codes"],
                         [scenario["reason_code"]],
                     )
-                    self.assertFalse(round_evidence["pipeline"]["passed"])
+                    self.assertNotIn("pipeline", round_evidence)
                     self.assertFalse(round_evidence["rule"]["requested"])
                     self.assertNotIn("evidence_strength", round_evidence)
                     self.assertNotIn("coverage", round_evidence)
-                    self.assertFalse(result.round_summary["pipeline_passed"])
+                    self.assertNotIn("pipeline_passed", result.round_summary)
 
     def test_executed_schema_discovery_is_policy_backend_neutral(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -12,15 +12,8 @@ from mea.agent_evidence import (
     compact_trusted_tools,
     round_execution_backend,
 )
-from mea.execution_vqa.runtime import (
-    _legacy_round_requests_execution_vqa,
-    compact_execution_vqa,
-)
-from mea.round_contract import validate_round_capability_contract
+from mea.execution_vqa.runtime import compact_execution_vqa
 from mea.round_evidence import compact_tool_evaluation
-
-
-_STRUCTURALLY_COMPLETED_VQA_STATUSES = {"passed", "skipped", "abstained"}
 
 
 def read_policy_success(result_path: Path) -> float | None:
@@ -32,24 +25,6 @@ def read_policy_success(result_path: Path) -> float | None:
         except ValueError:
             continue
     return None
-
-
-
-def taskgen_ast_gate_passed(static_validation: Mapping[str, Any]) -> bool:
-    """Accept either legacy TaskGen AST output or provider scene+checker AST."""
-
-    legacy = static_validation.get("load_actors_ast") or {}
-    if isinstance(legacy, Mapping) and legacy.get("valid") is True:
-        return True
-    provider = static_validation.get("provider_scene_checker") or {}
-    return bool(
-        isinstance(provider, Mapping)
-        and provider.get("valid") is True
-        and provider.get("model_written_python") is True
-        and provider.get("restricted_success_spec_compiler_used") is False
-        and isinstance(provider.get("ast_policy"), str)
-        and provider["ast_policy"].strip()
-    )
 
 
 def normalize_outcome_semantics(
@@ -225,7 +200,6 @@ def summarize_round(
     execution_vqa: dict[str, Any] | None = None,
     taskgen_returncode: int = 0,
 ) -> dict[str, Any]:
-    capability_contract = validate_round_capability_contract(round_plan)
     scene = child_manifest.get("scene_validation", {})
     scene_change = _compact_scene_change(scene)
     vision = child_manifest.get("vision_validation", {})
@@ -255,10 +229,6 @@ def summarize_round(
     trusted_tool_evaluation = child_manifest.get("trusted_tool_evaluation") or {}
     task_artifact_summary = child_manifest.get("task_artifact_summary") or {}
     is_official = round_plan.get("route") == "official"
-    is_generic_provider = (
-        round_plan.get("route")
-        == "generic_provider_scene_checker_codegen"
-    )
     execution_backend = round_execution_backend(round_plan)
     uses_act = execution_backend in {"act", "both"}
     uses_expert = execution_backend in {"expert", "both"}
@@ -274,7 +244,6 @@ def summarize_round(
         if isinstance(raw_official_equivalent, bool)
         else None
     )
-    static = child_manifest.get("static_validation") or {}
     policy_outcome = {
         "metric": trusted_tool_evaluation.get("outcome_metric"),
         "authority": trusted_tool_evaluation.get("outcome_authority"),
@@ -294,128 +263,6 @@ def summarize_round(
             for item in scene.get("expert_batch", {}).get("episodes", [])
             if item.get("seed") is not None
         ]
-    vqa_explicitly_omitted = not _legacy_round_requests_execution_vqa(round_plan)
-    gate_status = {
-        "variant_spec": (
-            (child_manifest.get("capability_contract_validation") or {}).get(
-                "status"
-            )
-            == "passed"
-        ),
-        "ast": taskgen_ast_gate_passed(static),
-        "render": bool(scene.get("render_success")),
-        "rule": bool((scene.get("rule_check") or {}).get("passed")),
-        "scene_variant": bool(positions.get("passed")),
-        "vision": bool(vision.get("passed")),
-        "expert": bool((scene.get("expert_batch") or expert).get("passed")),
-        "act": bool((not uses_act and is_official) or act.get("passed")),
-        "toolkit": bool(
-            (child_manifest.get("trusted_tool_evaluation") or {}).get(
-                "episode_count"
-            )
-        ),
-        "planned_tool": bool(
-            tool_evaluation and tool_evaluation.get("status") == "passed"
-        ),
-        "aggregate": bool(
-            aggregate_result
-            and str(aggregate_result.get("status", "")).startswith("passed")
-        ),
-        "execution_vqa": bool(
-            execution_vqa
-            and (
-                execution_vqa.get("status") in {"passed", "abstained"}
-                or (
-                    (not uses_act or vqa_explicitly_omitted)
-                    and execution_vqa.get("status") == "skipped"
-                )
-            )
-        ),
-    }
-    required_gates = (
-        list(capability_contract["required_gates"])
-        if capability_contract is not None
-        else []
-    )
-    required_gate_status = {
-        "required": required_gates,
-        "by_gate": {gate: bool(gate_status.get(gate, False)) for gate in required_gates},
-    }
-    required_gate_status["passed"] = all(
-        required_gate_status["by_gate"].values()
-    )
-    if is_official:
-        expert_batch = scene.get("expert_batch") or expert
-        pipeline_passed = bool(
-            child_manifest.get("status")
-            == ("completed" if uses_act else "completed_without_act")
-            and taskgen_returncode == 0
-            and scene.get("render_success")
-            and scene.get("rule_check", {}).get("passed")
-            and (not uses_expert or expert_batch.get("passed"))
-            and (not uses_act or act.get("passed"))
-            and child_manifest.get("trusted_tool_evaluation", {}).get("episode_count")
-            and tool_evaluation
-            and tool_evaluation.get("status") == "passed"
-            and aggregate_result
-            and str(aggregate_result.get("status", "")).startswith("passed")
-            and execution_vqa
-            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
-        )
-    elif is_generic_provider:
-        preflight = scene.get("generic_preflight") or {}
-        fixtures = preflight.get("checker_fixtures") or []
-        acceptance = child_manifest.get("task_generation_acceptance") or {}
-        visual_required = acceptance.get(
-            "visual_self_check_required", True
-        )
-        pipeline_passed = bool(
-            child_manifest.get("status") == "completed"
-            and taskgen_returncode == 0
-            and taskgen_ast_gate_passed(static)
-            and scene.get("render_success")
-            and scene.get("rule_check", {}).get("passed")
-            and expert.get("passed")
-            and preflight.get("render_passed") is True
-            and preflight.get("expert_passed") is True
-            and preflight.get("scene_change_passed") is True
-            and (
-                not visual_required
-                or (
-                    vision.get("status") == "passed"
-                    and vision.get("passed") is True
-                )
-            )
-            and fixtures
-            and all(item.get("passed") is True for item in fixtures)
-            and act.get("passed")
-            and tool_evaluation
-            and tool_evaluation.get("status") == "passed"
-            and aggregate_result
-            and str(aggregate_result.get("status", "")).startswith("passed")
-            and execution_vqa
-            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
-        )
-    else:
-        # Generated rounds keep their expert, visual, and task-specific
-        # position gates while ACT remains the policy under evaluation.
-        pipeline_passed = bool(
-            child_manifest.get("status") == "completed"
-            and taskgen_returncode == 0
-            and scene.get("rule_check", {}).get("passed")
-            and vision.get("passed")
-            and expert.get("passed")
-            and positions.get("passed")
-            and act.get("passed")
-            and tool_evaluation
-            and tool_evaluation.get("status") == "passed"
-            and aggregate_result
-            and str(aggregate_result.get("status", "")).startswith("passed")
-            and execution_vqa
-            and execution_vqa.get("status") in _STRUCTURALLY_COMPLETED_VQA_STATUSES
-        )
-    if capability_contract is not None:
-        pipeline_passed = bool(pipeline_passed and required_gate_status["passed"])
     summary = {
         "round_id": round_plan["round_id"],
         "variant_id": (
@@ -423,11 +270,9 @@ def summarize_round(
         ),
         "template_id": round_plan.get("template_id"),
         "capability_id": round_plan.get("capability_id"),
-        "capability_contract": round_plan.get("capability_contract"),
         "semantic_need_execution": deepcopy(
             round_plan.get("semantic_need_execution")
         ),
-        "required_gate_status": required_gate_status,
         "sub_aspect": round_plan["sub_aspect"],
         "task_instruction": round_plan["task_instruction"],
         "route": round_plan["route"],
@@ -454,7 +299,6 @@ def summarize_round(
                 if uses_expert or not is_official
                 else None
             ),
-            "act_pipeline_status": bool(act.get("passed")) if uses_act else None,
             "policy_success": policy_success if uses_act else None,
             "policy_outcome": policy_outcome,
             "outcome_semantics": outcome_semantics,
@@ -484,12 +328,9 @@ def summarize_round(
             "planned_tool": compact_tool_evaluation(tool_evaluation),
             "aggregate": compact_aggregate_result(aggregate_result),
             "execution_vqa": compact_execution_vqa(execution_vqa),
-            "required_gate_status": required_gate_status,
         },
-        "pipeline_passed": pipeline_passed,
         "interpretation": (
-            "任务路由与执行后端分别记录；ACT 策略结果和流水线状态分开报告，"
-            "策略失败不会被误记为 pipeline failure。"
+            "任务、策略、Rule 与 VQA 各自记录事实；不再压成整轮 AND。"
         ),
     }
     return summary
@@ -498,5 +339,4 @@ def summarize_round(
 __all__ = [
     "normalize_outcome_semantics",
     "summarize_round",
-    "taskgen_ast_gate_passed",
 ]

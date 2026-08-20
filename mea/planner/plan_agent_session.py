@@ -25,9 +25,9 @@ from .runtime_limits import (
     validate_plan_runtime_limits,
 )
 from .query_interpretation import (
+    OFFICIAL_CONTROL_TEMPLATE_ID,
     _nonempty_text,
     _target_task_name,
-    control_template_id,
 )
 
 
@@ -97,7 +97,7 @@ class PlanAgentSession(PlanAgentEvidenceMixin, PlanAgentDecisionMixin):
         self.control_template = (
             "official_control"
             if method_binding is not None
-            else control_template_id(self.target)
+            else OFFICIAL_CONTROL_TEMPLATE_ID
         )
         supplied_contract = (
             validate_plan_runtime_limits(runtime_limits)

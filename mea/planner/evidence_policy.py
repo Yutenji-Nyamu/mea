@@ -2,8 +2,7 @@
 
 The runtime records facts here; it does not decide what the Query means, rank
 future experiments, or author a Plan action. The Plan Agent receives the same
-pipeline, policy, Rule, VQA, and simulator facts that were persisted for the
-round.
+policy, Rule, VQA, simulator, and typed planning facts persisted for the round.
 """
 
 from __future__ import annotations
@@ -21,7 +20,6 @@ _ROUND_KEYS = {
     "schema_version",
     "round_id",
     "candidate_id",
-    "pipeline",
     "planning_observation",
     "policy",
     "rule",
@@ -29,7 +27,6 @@ _ROUND_KEYS = {
     "outcome_semantics",
     "scene_change",
 }
-_PIPELINE_KEYS = {"passed", "failure_stage"}
 _POLICY_KEYS = {
     "success_rate",
     "metric",
@@ -169,23 +166,6 @@ def validate_round_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     evidence["candidate_id"] = _text(
         evidence.get("candidate_id"), "candidate_id"
     )
-
-    pipeline = evidence.get("pipeline")
-    if not isinstance(pipeline, Mapping) or set(pipeline) != _PIPELINE_KEYS:
-        raise RoundEvidenceError("RoundEvidence.pipeline fields changed")
-    if not isinstance(pipeline.get("passed"), bool):
-        raise RoundEvidenceError("RoundEvidence.pipeline.passed must be bool")
-    pipeline = {
-        "passed": pipeline["passed"],
-        "failure_stage": _optional_text(
-            pipeline.get("failure_stage"), "pipeline.failure_stage"
-        ),
-    }
-    if pipeline["passed"] and pipeline["failure_stage"] is not None:
-        raise RoundEvidenceError(
-            "a passed pipeline cannot carry a failure_stage"
-        )
-    evidence["pipeline"] = pipeline
 
     planning = evidence.get("planning_observation")
     if planning is not None:
@@ -405,13 +385,6 @@ def build_round_evidence(
     observations = round_summary.get("observations")
     if not isinstance(observations, Mapping):
         raise RoundEvidenceError("round summary observations must be an object")
-    pipeline_passed = round_summary.get("pipeline_passed")
-    if not isinstance(pipeline_passed, bool):
-        raise RoundEvidenceError("round summary pipeline_passed must be bool")
-    failure_stage = round_summary.get("failure_stage")
-    if pipeline_passed:
-        failure_stage = None
-
     policy_outcome = observations.get("policy_outcome")
     policy_outcome = (
         policy_outcome if isinstance(policy_outcome, Mapping) else {}
@@ -454,10 +427,6 @@ def build_round_evidence(
             "schema_version": 1,
             "round_id": round_id,
             "candidate_id": candidate_id,
-            "pipeline": {
-                "passed": pipeline_passed,
-                "failure_stage": failure_stage,
-            },
             "planning_observation": (
                 deepcopy(dict(planning))
                 if isinstance(planning, Mapping)

@@ -45,8 +45,10 @@ def completed_round(
     }
     round_summary = {
         "round_id": "round_1",
-        "pipeline_passed": True,
+        "taskgen_returncode": 0,
         "observations": {
+            "scene_alignment": True,
+            "expert_solvable": True,
             "actual_seeds": [7],
             "policy_success": 1.0,
             "policy_outcome": {
@@ -384,8 +386,10 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
         }
         summary = {
             "round_id": "round_1",
-            "pipeline_passed": True,
+            "taskgen_returncode": 0,
             "observations": {
+                "scene_alignment": True,
+                "expert_solvable": True,
                 "actual_seeds": [7],
                 "policy_success": 1.0,
                 "policy_outcome": {
@@ -568,8 +572,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
         }
         summary = {
             "round_id": "round_2",
-            "pipeline_passed": False,
-            "failure_stage": "taskgen_expert_gate",
+            "taskgen_returncode": 0,
             "observations": {
                 "actual_seeds": [],
                 "planning_observation": {
@@ -597,7 +600,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
         evidence = build_round_evidence(round_plan, summary)
 
         self.assertEqual(evidence["schema_version"], 1)
-        self.assertFalse(evidence["pipeline"]["passed"])
+        self.assertNotIn("pipeline", evidence)
         self.assertEqual(
             evidence["planning_observation"]["reason_code"],
             "taskgen_expert_gate_official_baseline_unsolvable",

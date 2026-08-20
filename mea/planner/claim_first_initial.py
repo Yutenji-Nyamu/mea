@@ -17,7 +17,7 @@ from typing import Any, Mapping
 
 from mea.toolgen import official_success_tool_request
 
-from .query_interpretation import control_template_id
+from .query_interpretation import OFFICIAL_CONTROL_TEMPLATE_ID
 from .policy_task_binding import (
     PolicyTaskBindingError,
     policy_task_binding_from_target,
@@ -137,8 +137,8 @@ def build_plan_agent_control_round(
         )
     return {
         "round_id": "round_1",
-        "template_id": control_template_id(bound_target),
-        "sub_aspect": "task_execution.official_baseline",
+        "template_id": OFFICIAL_CONTROL_TEMPLATE_ID,
+        "sub_aspect": OFFICIAL_CONTROL_TEMPLATE_ID,
         "rationale": (
             "Establish the unchanged official-task control required by the "
             "runtime limits before attributing evidence to a generated candidate."
@@ -205,10 +205,7 @@ class PlanAgentInitialPlanBuilder:
             num_episodes=num_episodes,
             execution_backend=execution_backend,
         )
-        # Resolve the neutral control once at construction, even for a
-        # no-control Query.  It validates that the bound target can transport a
-        # later runtime candidate without selecting a task-specific itinerary.
-        self.control_template = control_template_id(self.target)
+        self.control_template = OFFICIAL_CONTROL_TEMPLATE_ID
 
     def plan(
         self,

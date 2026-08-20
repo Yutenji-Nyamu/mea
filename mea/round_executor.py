@@ -455,7 +455,7 @@ class RoundExecutor:
                 if not semantic_ready
                 else f"child TaskGen exited with code {returncode}"
                 if returncode != 0
-                else "child TaskGen pipeline did not complete"
+                else "child TaskGen run did not complete"
             )
             tool_evaluation = {
                 "schema_version": 1,
@@ -751,10 +751,6 @@ class RoundExecutor:
                 reason_code = str(
                     planning_observation.get("reason_code")
                     or "taskgen_planning_observation_before_policy"
-                )
-                round_summary["failure_stage"] = str(
-                    planning_observation.get("failure_stage")
-                    or "taskgen_expert_gate"
                 )
                 round_summary["observations"].update(
                     {

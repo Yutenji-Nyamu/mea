@@ -25,7 +25,6 @@ _TERMINATIONS = {
     "budget_exhausted",
     "continue",
     "control_not_passed",
-    "pipeline_invalid",
     "unknown",
 }
 
@@ -173,18 +172,6 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
         raise AnswerScopeError(
             "query sufficiency assessment has an inconsistent stop verdict"
         )
-    policy_rounds = [
-        item
-        for item in evidence.get("rounds", [])
-        if isinstance(item, Mapping)
-        and item.get("planning_observation") is None
-    ]
-    if policy_rounds and any(
-        not isinstance(item.get("pipeline"), Mapping)
-        or item["pipeline"].get("passed") is not True
-        for item in policy_rounds
-    ):
-        return "pipeline_invalid", None
     plan = evidence.get("plan")
     if isinstance(plan, Mapping):
         budget_remaining = plan.get("round_budget_remaining")

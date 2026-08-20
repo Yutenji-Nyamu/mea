@@ -17,18 +17,6 @@ def target(*, max_rounds: int = 3) -> dict:
         "task_name": "click_bell",
         "max_rounds": max_rounds,
         "policy": {"policy_name": "ACT"},
-        "aspects": [
-            {
-                "aspect_id": "task_execution.official_baseline",
-                "description": "Unchanged official task.",
-                "template_ids": ["task_execution.official_baseline"],
-            },
-            {
-                "aspect_id": "object_position",
-                "description": "Position variants available for retrieval.",
-                "template_ids": ["object_position.left_fixed"],
-            },
-        ],
     }
 
 
@@ -282,7 +270,6 @@ def non_comparable_record() -> dict:
             "outcome": "unknown",
         },
         "round_evidence": {
-            "pipeline": {"passed": True},
             "policy": {"success_rate": None},
         },
         "evaluation_outcome": {
@@ -305,7 +292,6 @@ def control_record(
     candidate_id: str = "task_execution.official_baseline",
     template_id: str | None = "task_execution.official_baseline",
     success_rate: float | None = 1.0,
-    pipeline_passed: bool = True,
     planning_observation: dict | None = None,
     authority: str | None = "official_check_success",
     official_equivalent: bool | None = True,
@@ -319,8 +305,7 @@ def control_record(
     )
     candidate_outcome = (
         "unknown"
-        if not pipeline_passed
-        or success_rate is None
+        if success_rate is None
         or not official_identity
         else "pass"
         if success_rate >= 1.0
@@ -340,7 +325,6 @@ def control_record(
             "outcome": candidate_outcome,
         },
         "round_evidence": {
-            "pipeline": {"passed": pipeline_passed},
             "policy": {
                 "success_rate": success_rate,
                 "metric": "official_check_success",
@@ -731,7 +715,6 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 "outcome": "conflict",
             },
             "round_evidence": {
-                "pipeline": {"passed": True},
                 "policy": {"success_rate": None},
             },
             "evaluation_outcome": {"metric": "official_check_success"},
@@ -1108,7 +1091,6 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 candidate_id=retries[0]["candidate_id"],
                 template_id=None,
                 success_rate=None,
-                pipeline_passed=False,
                 planning_observation={
                     "kind": "official_baseline_unavailable",
                     "status": "inconclusive",

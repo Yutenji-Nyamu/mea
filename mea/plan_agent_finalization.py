@@ -62,15 +62,9 @@ class PlanAgentFinalizationMixin:
             "schema_version": 2,
             "evaluation_id": self.evaluation_id,
             "status": (
-                "completed"
-                if policy_round_runs
-                and all(
-                    item["round_summary"]["pipeline_passed"]
-                    for item in policy_round_runs
-                )
-                else "completed_with_planning_gap"
+                "completed_with_planning_gap"
                 if planning_observations and not policy_round_runs
-                else "completed_with_pipeline_failure"
+                else "completed"
             ),
             "rounds": [item["round_summary"] for item in round_runs],
             "planning_observations": planning_observations,
