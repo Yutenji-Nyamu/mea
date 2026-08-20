@@ -1,4 +1,4 @@
-"""Deterministic answer scope and fail-closed limitation projection."""
+"""Structured evidence scope for a completed Plan Agent answer."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Mapping
 
 
 class AnswerScopeError(ValueError):
-    """Raised when final feedback omits an evidence-required limitation."""
+    """Raised when the structured answer scope is invalid."""
 
 
 _SCOPE_KEYS = {
@@ -19,9 +19,7 @@ _SCOPE_KEYS = {
     "evidence_conflict",
     "termination",
     "claim_verdict",
-    "required_limitations",
 }
-_LIMITATION_KEYS = {"code", "text"}
 _TERMINATIONS = {
     "agent_stop",
     "budget_exhausted",
@@ -200,79 +198,8 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
     return "unknown", None
 
 
-def _canonical_limitations(
-    *,
-    sample_count: int | None,
-    seeds: list[int],
-    untested: list[str],
-    conflict: bool,
-    termination: str,
-) -> list[dict[str, str]]:
-    limitations = [
-        {
-            "code": "sample_count_and_seeds",
-            "text": (
-                f"Evidence contains N={sample_count} policy episodes at seeds "
-                f"{seeds}."
-                if sample_count is not None and seeds
-                else f"Evidence contains N={sample_count} policy episodes; seeds are unavailable."
-                if sample_count is not None
-                else f"Policy episode count is unavailable; observed seeds are {seeds}."
-                if seeds
-                else "Policy episode count and seeds are unavailable."
-            ),
-        }
-    ]
-    if untested:
-        limitations.append(
-            {
-                "code": "untested_candidates",
-                "text": f"Untested candidates remain: {untested}.",
-            }
-        )
-    if conflict:
-        limitations.append(
-            {
-                "code": "evidence_conflict",
-                "text": "Execution VQA conflicts with another evidence source; the conflict remains unresolved.",
-            }
-        )
-    termination_text = {
-        "agent_stop": (
-            "The Plan Agent stopped after reading the completed evidence. "
-            "The conclusion remains limited to the recorded task, policy, "
-            "variants, samples, and seeds."
-        ),
-        "budget_exhausted": (
-            "The run stopped because its external round budget was exhausted "
-            "before the Plan Agent produced a supported answer."
-        ),
-        "continue": (
-            "The Plan Agent requested more evidence; the current answer is interim."
-        ),
-        "control_not_passed": (
-            "The unchanged-scene control did not pass, so no property "
-            "attribution or novel-variant conclusion is authorized."
-        ),
-        "pipeline_invalid": (
-            "The evaluation pipeline is invalid, so it cannot support a policy "
-            "performance conclusion."
-        ),
-        "unknown": (
-            "No validated Agent-authored stop verdict is present in the evidence."
-        ),
-    }[termination]
-    limitations.append(
-        {
-            "code": f"termination_{termination}",
-            "text": termination_text,
-        }
-    )
-    return limitations
-
-
 def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
-    """Project facts that every final answer must expose as limitations."""
+    """Project the evidence facts that bound the final answer."""
 
     if not isinstance(evidence, Mapping):
         raise AnswerScopeError("evidence must be an object")
@@ -282,13 +209,6 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
     untested = _untested_candidates(evidence)
     conflict = _execution_conflict(evidence)
     termination, claim_verdict = _termination(evidence)
-    limitations = _canonical_limitations(
-        sample_count=sample_count,
-        seeds=seeds,
-        untested=untested,
-        conflict=conflict,
-        termination=termination,
-    )
     return validate_answer_scope(
         {
             "schema_version": 1,
@@ -299,7 +219,6 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
             "evidence_conflict": conflict,
             "termination": termination,
             "claim_verdict": claim_verdict,
-            "required_limitations": limitations,
         }
     )
 
@@ -349,103 +268,11 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
     verdict = scope.get("claim_verdict")
     if verdict is not None and (not isinstance(verdict, str) or not verdict):
         raise AnswerScopeError("claim_verdict must be a non-empty string or null")
-    limitations = scope.get("required_limitations")
-    if not isinstance(limitations, list) or not limitations:
-        raise AnswerScopeError("required_limitations must be a non-empty list")
-    codes = []
-    for index, item in enumerate(limitations):
-        if not isinstance(item, Mapping) or set(item) != _LIMITATION_KEYS:
-            raise AnswerScopeError(
-                f"required_limitations[{index}] must contain code and text"
-            )
-        code = item.get("code")
-        text = item.get("text")
-        if not isinstance(code, str) or not code:
-            raise AnswerScopeError(f"required_limitations[{index}].code is invalid")
-        if not isinstance(text, str) or not text:
-            raise AnswerScopeError(f"required_limitations[{index}].text is invalid")
-        codes.append(code)
-    if len(codes) != len(set(codes)):
-        raise AnswerScopeError("required limitation codes must be unique")
-    expected_limitations = _canonical_limitations(
-        sample_count=count,
-        seeds=seeds,
-        untested=scope["untested_candidate_ids"],
-        conflict=scope["evidence_conflict"],
-        termination=scope["termination"],
-    )
-    if limitations != expected_limitations:
-        raise AnswerScopeError(
-            "required_limitations do not match the structured answer scope"
-        )
     return scope
-
-
-def project_answer_scope(
-    feedback: Mapping[str, Any],
-    scope: Mapping[str, Any],
-) -> dict[str, Any]:
-    """Append canonical limitations and bind their codes to the final answer."""
-
-    if not isinstance(feedback, Mapping):
-        raise AnswerScopeError("feedback must be an object")
-    normalized_scope = validate_answer_scope(scope)
-    projected = deepcopy(dict(feedback))
-    limitations = projected.get("limitations")
-    if not isinstance(limitations, list) or any(
-        not isinstance(item, str) or not item for item in limitations
-    ):
-        raise AnswerScopeError("feedback.limitations must be a string list")
-    canonical = [
-        item["text"] for item in normalized_scope["required_limitations"]
-    ]
-    projected["limitations"] = _dedupe([*limitations, *canonical])
-    projected["answer_scope"] = normalized_scope
-    projected["limitation_codes"] = [
-        item["code"] for item in normalized_scope["required_limitations"]
-    ]
-    return validate_answer_scope_projection(projected, normalized_scope)
-
-
-def validate_answer_scope_projection(
-    feedback: Mapping[str, Any],
-    expected_scope: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Fail closed if structured scope or any canonical limitation is absent."""
-
-    if not isinstance(feedback, Mapping):
-        raise AnswerScopeError("feedback must be an object")
-    embedded = feedback.get("answer_scope")
-    if not isinstance(embedded, Mapping):
-        raise AnswerScopeError("feedback is missing structured answer_scope")
-    scope = validate_answer_scope(embedded)
-    if expected_scope is not None and scope != validate_answer_scope(expected_scope):
-        raise AnswerScopeError("feedback answer_scope differs from evidence")
-    required_codes = [item["code"] for item in scope["required_limitations"]]
-    codes = feedback.get("limitation_codes")
-    if codes != required_codes:
-        raise AnswerScopeError(
-            "feedback limitation_codes do not exactly match answer_scope"
-        )
-    limitations = feedback.get("limitations")
-    if not isinstance(limitations, list):
-        raise AnswerScopeError("feedback.limitations must be a list")
-    missing = [
-        item["code"]
-        for item in scope["required_limitations"]
-        if item["text"] not in limitations
-    ]
-    if missing:
-        raise AnswerScopeError(
-            f"feedback omitted evidence-required limitations: {missing}"
-        )
-    return deepcopy(dict(feedback))
 
 
 __all__ = [
     "AnswerScopeError",
     "build_answer_scope",
-    "project_answer_scope",
     "validate_answer_scope",
-    "validate_answer_scope_projection",
 ]

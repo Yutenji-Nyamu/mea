@@ -9,8 +9,6 @@ from mea.feedback import (
     AnswerScopeError,
     build_answer_scope,
     build_scoped_plan_agent_answer,
-    validate_answer_scope,
-    validate_answer_scope_projection,
 )
 from mea.plan_agent_finalization import PlanAgentFinalizationMixin
 
@@ -147,13 +145,6 @@ class AnswerScopeTests(unittest.TestCase):
         self.assertEqual(scope["sample_count"], 2)
         self.assertEqual(scope["seeds"], [7])
 
-    def test_scope_has_no_legacy_field_compatibility(self):
-        scope = build_answer_scope(evidence())
-        legacy = {**scope, "original_intent_ids": []}
-
-        with self.assertRaisesRegex(AnswerScopeError, "current schema"):
-            validate_answer_scope(legacy)
-
     def test_pipeline_fallback_reads_round_evidence(self):
         value = evidence()
         value.pop("plan_agent_session")
@@ -166,7 +157,7 @@ class AnswerScopeTests(unittest.TestCase):
 
         self.assertEqual(scope["termination"], "pipeline_invalid")
 
-    def test_scoped_answer_projects_exact_current_scope(self):
+    def test_scoped_answer_keeps_plan_text_and_structured_scope(self):
         value = evidence()
         query_answer = {
             "answer": "The bounded evidence remains inconclusive.",
@@ -179,10 +170,24 @@ class AnswerScopeTests(unittest.TestCase):
 
         feedback = build_scoped_plan_agent_answer(value, query_answer)
 
-        validate_answer_scope_projection(feedback, build_answer_scope(value))
+        self.assertEqual(feedback["answer_scope"], build_answer_scope(value))
         self.assertEqual(feedback["answer"], query_answer["answer"])
-        self.assertEqual(feedback["evidence_policy"]["source"], "RoundEvidence")
+        self.assertEqual(feedback["limitations"], query_answer["limitations"])
         self.assertTrue(feedback["answer_scope"]["evidence_conflict"])
+        self.assertEqual(
+            set(feedback),
+            {
+                "answer",
+                "evaluation_scope",
+                "findings",
+                "limitations",
+                "recommended_next_step",
+                "answer_scope",
+            },
+        )
+        self.assertNotIn(
+            "required_limitations", feedback["answer_scope"]
+        )
 
     def test_final_projection_never_rewrites_agent_answer(self):
         value = evidence()
@@ -200,9 +205,7 @@ class AnswerScopeTests(unittest.TestCase):
         feedback = build_scoped_plan_agent_answer(value, query_answer)
 
         self.assertEqual(feedback["answer"], query_answer["answer"])
-        self.assertFalse(
-            feedback["consistency_validation"]["deterministic_correction"]
-        )
+        self.assertEqual(feedback["limitations"], query_answer["limitations"])
 
     def test_hard_cap_uses_one_budget_exhausted_assessment_everywhere(self):
         bundle = evidence("continue")

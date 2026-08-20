@@ -4,16 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .answer_scope import (
-    build_answer_scope,
-    project_answer_scope,
-    validate_answer_scope_projection,
-)
-from .prototype import (
-    PlanAgentFinalSummaryError,
-    _has_execution_vqa_conflict,
-    _require_text,
-    validate_feedback,
+from .answer_scope import build_answer_scope
+from .final_output import (
+    FinalAnswerError,
+    require_text,
+    validate_final_answer,
 )
 
 
@@ -24,9 +19,9 @@ def build_scoped_plan_agent_answer(
     """Turn a session-owned Query answer into the shared final-answer schema."""
 
     if not isinstance(evidence, Mapping):
-        raise PlanAgentFinalSummaryError("evidence must be an object")
+        raise FinalAnswerError("evidence must be an object")
     if not isinstance(query_answer, Mapping):
-        raise PlanAgentFinalSummaryError("query_answer must be an object")
+        raise FinalAnswerError("query_answer must be an object")
 
     scope = build_answer_scope(evidence)
     tested = list(query_answer.get("tested_candidate_ids") or [])
@@ -74,9 +69,9 @@ def build_scoped_plan_agent_answer(
     else:
         next_step = "Collect the next executable evidence chosen by the Plan Agent."
 
-    feedback = validate_feedback(
+    feedback = validate_final_answer(
         {
-            "answer": _require_text(
+            "answer": require_text(
                 query_answer.get("answer"), "query_answer.answer"
             ),
             "evaluation_scope": evaluation_scope,
@@ -85,26 +80,7 @@ def build_scoped_plan_agent_answer(
             "recommended_next_step": next_step,
         }
     )
-    feedback["consistency_validation"] = {
-        "passed": True,
-        "attempts_used": 0,
-        "rejected_responses": 0,
-        "errors": [],
-        "deterministic_correction": False,
-    }
-    feedback["evidence_policy"] = {
-        "source": "RoundEvidence",
-        "episode_math_by_plan_agent_summary": False,
-        "numeric_simulator_tools_authoritative": True,
-        "execution_vqa_is_visual_only": True,
-        "evidence_conflict": _has_execution_vqa_conflict(dict(evidence)),
-    }
-    feedback["provider_metadata"] = {
-        "called": False,
-        "reason": "plan_agent_session_query_answer_projection",
-    }
-    feedback = project_answer_scope(feedback, scope)
-    validate_answer_scope_projection(feedback, scope)
+    feedback["answer_scope"] = scope
     return feedback
 
 

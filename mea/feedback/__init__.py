@@ -1,40 +1,28 @@
 """Evidence-grounded final answers for completed MEA evaluations."""
 
-from .prototype import (
-    apply_deterministic_consistency_guard,
+from .final_output import (
     answer_markdown,
-    PlanAgentFinalSummary,
-    PlanAgentFinalSummaryError,
-    FeedbackAgent,
-    FeedbackAgentError,
+    FinalAnswerError,
     render_evaluation_report,
-    validate_feedback,
+    validate_final_answer,
 )
 from .session_answer import build_scoped_plan_agent_answer
 from .evidence_report import EvidenceReportError, write_evidence_report
 from .answer_scope import (
     AnswerScopeError,
     build_answer_scope,
-    project_answer_scope,
     validate_answer_scope,
-    validate_answer_scope_projection,
 )
 
 __all__ = [
-    "apply_deterministic_consistency_guard",
     "answer_markdown",
     "build_scoped_plan_agent_answer",
-    "PlanAgentFinalSummary",
-    "PlanAgentFinalSummaryError",
-    "FeedbackAgent",
-    "FeedbackAgentError",
+    "FinalAnswerError",
     "render_evaluation_report",
-    "validate_feedback",
+    "validate_final_answer",
     "EvidenceReportError",
     "write_evidence_report",
     "AnswerScopeError",
     "build_answer_scope",
-    "project_answer_scope",
     "validate_answer_scope",
-    "validate_answer_scope_projection",
 ]
