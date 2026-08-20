@@ -170,9 +170,12 @@ CUDA_VISIBLE_DEVICES=0 \
   --output-dir /path/to/output/beat_block_hammer_seed1000
 ```
 
-产物为 `result.json`、`initial_head.png`、`final_head.png`。独立重复时，每个
-task 启动新的 `--max-clients 1 --seed ...` server；顺序 batch 必须冻结并记录
-任务顺序，因为 `policy.reset()` 不会重播 Torch/NumPy RNG。
+产物为 `result.json`、`initial_head.png`、`final_head.png`。上面是单 episode
+独立 client，所以使用 `--max-clients 1`。生产 Agent 默认每个执行任务聚合
+`M=5` 个 trial；若最多允许五个执行 round，同一 policy server 应使用
+`--max-clients 25`。当前 client 在每次 reset 中显式发送 trial seed，server 在
+`policy.reset()` 前按该 seed 重置 Torch/NumPy RNG；同一 evaluation 的 control 与
+candidate 使用同一 seed 组，场景随机性和策略随机性都可配对比较。
 
 上面的 external-first 路径仅适用于 unchanged official standalone client。运行 MEA
 生成任务时，TaskGen 与 rollout 必须使用同一 RoboTwin fork：

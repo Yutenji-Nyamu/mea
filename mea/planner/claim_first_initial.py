@@ -174,7 +174,7 @@ class PlanAgentInitialPlanBuilder:
         target: Mapping[str, Any],
         max_rounds: int,
         start_seed: int,
-        num_episodes: int = 1,
+        num_episodes: int = 5,
         execution_backend: str = "act",
         task_module: str | None = None,
         telemetry_profile: str = "balanced_v1",

@@ -77,6 +77,15 @@ class PlanAgentRuntimeLimitsTests(unittest.TestCase):
         self.assertTrue(stopped["evidence_sufficient"])
         self.assertEqual(stopped["stop_reason"], "agent_stop")
 
+    def test_partial_trial_aggregate_is_decisive_without_becoming_pass_or_fail(self):
+        assessment = summarize_plan_evidence(
+            build_plan_runtime_limits("Broad Query", round_budget=3),
+            [{"candidate_id": "candidate.a", "outcome": "mixed", "score": 0.6}],
+        )
+
+        self.assertEqual(assessment["decisive_candidate_ids"], ["candidate.a"])
+        self.assertEqual(assessment["unknown_candidate_ids"], [])
+
     def test_answered_stop_rejects_missing_or_conflicting_evidence(self):
         no_evidence = summarize_plan_evidence(
             build_plan_runtime_limits("Broad Query", round_budget=3),

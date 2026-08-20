@@ -9,7 +9,7 @@
 - [运行指南](running_guide_zh.md)：plan-only、live rollout 与证据查看。
 - [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)：服务器安装、镜像/限流问题、seed/RNG parity、official/custom 两回合方法链及复现协议；这是长期保留、按需读取的 cold reference。
 - [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)：checkpoint 固定与校验、服务器网络、Python/NumPy 隔离、双进程 IPC、policy adapter 协议和完整回滚边界；这是长期保留、按需读取的 cold reference。
-- [RoboTwin / Hy-VLA 复现](robotwin_hyvla_reproduction_zh.md)：第二个多任务 policy 的服务器部署、版本固定、隔离环境、official N=1 验收与 MEA 接入边界；完整逐命令流水保存在 paper 实验层。
+- [RoboTwin / Hy-VLA 复现](robotwin_hyvla_reproduction_zh.md)：第二个多任务 policy 的服务器部署、版本固定、隔离环境、历史 official `M=1` 机制验收与 MEA 接入边界；完整逐命令流水保存在 paper 实验层。
 - [RoboTwin / X-VLA 复现](robotwin_xvla_reproduction_zh.md)：0.9B 多任务 policy 的固定 revision、服务器下载、隔离环境、离线 action 验收与科学边界；完整逐命令流水保存在 paper 实验层。
 - [论文 claim 与 gap](paper_claim_gap_zh.md)：论文声称、当前证据和下一步。
 - [开发者参考](developer_reference_zh.md)：扩展任务、生成器和工具时的最小接口。

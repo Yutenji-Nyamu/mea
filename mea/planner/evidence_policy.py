@@ -186,10 +186,17 @@ def validate_round_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(policy, Mapping) or set(policy) != _POLICY_KEYS:
         raise RoundEvidenceError("RoundEvidence.policy fields changed")
     seeds = policy.get("seeds")
-    if not isinstance(seeds, list) or any(
-        isinstance(seed, bool) or not isinstance(seed, int) for seed in seeds
+    if (
+        not isinstance(seeds, list)
+        or any(
+            isinstance(seed, bool) or not isinstance(seed, int) or seed < 0
+            for seed in seeds
+        )
+        or len(seeds) != len(set(seeds))
     ):
-        raise RoundEvidenceError("RoundEvidence.policy.seeds must be int list")
+        raise RoundEvidenceError(
+            "RoundEvidence.policy.seeds must be a unique non-negative int list"
+        )
     official_equivalent = policy.get("official_equivalent")
     if official_equivalent is not None and not isinstance(
         official_equivalent, bool
@@ -391,6 +398,10 @@ def build_round_evidence(
     )
     seeds = observations.get("actual_seeds")
     seeds = list(seeds) if isinstance(seeds, list) else []
+    requested_seeds = (round_plan.get("execution") or {}).get("seeds")
+    requested_seeds = (
+        list(requested_seeds) if isinstance(requested_seeds, list) else []
+    )
 
     rule_requested = _rule_requested(round_plan)
     planned_tool = observations.get("planned_tool")
@@ -422,6 +433,15 @@ def build_round_evidence(
     if planning is not None and not isinstance(planning, Mapping):
         raise RoundEvidenceError("planning_observation must be an object")
     scene_change = observations.get("scene_change")
+    policy_success = observations.get("policy_success")
+    if (
+        planning is None
+        and policy_success is not None
+        and seeds != requested_seeds
+    ):
+        raise RoundEvidenceError(
+            "completed policy trials must preserve the exact requested seed group"
+        )
     return validate_round_evidence(
         {
             "schema_version": 1,
@@ -433,7 +453,7 @@ def build_round_evidence(
                 else None
             ),
             "policy": {
-                "success_rate": observations.get("policy_success"),
+                "success_rate": policy_success,
                 "metric": policy_outcome.get("metric"),
                 "authority": policy_outcome.get("authority"),
                 "official_equivalent": policy_outcome.get(

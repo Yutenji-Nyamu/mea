@@ -19,7 +19,7 @@ class PlanRuntimeError(ValueError):
     """Raised when runtime limits or evidence are malformed."""
 
 
-OUTCOMES = frozenset({"pass", "fail", "unknown", "conflict"})
+OUTCOMES = frozenset({"pass", "fail", "mixed", "unknown", "conflict"})
 _RUNTIME_KEYS = {"schema_version", "round_budget", "control_requirement"}
 _CONTROL_REQUIREMENTS = frozenset({"required", "not_required"})
 
@@ -161,7 +161,7 @@ def summarize_plan_evidence(
         "decisive_candidate_ids": [
             item["candidate_id"]
             for item in evidence
-            if item["outcome"] in {"pass", "fail"}
+            if item["outcome"] in {"pass", "fail", "mixed"}
         ],
         "conflict_candidate_ids": conflicts,
         "unknown_candidate_ids": [

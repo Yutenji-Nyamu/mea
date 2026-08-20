@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Mapping
 
 from mea.method_runtime import (
@@ -25,12 +26,22 @@ def rollout_candidate(
             "RoboTwin candidate native_task has the wrong runtime type"
         )
     manifest = deepcopy(dict(native.rollout_manifest))
-    if not manifest.get("overlay"):
-        request.output_dir.mkdir(parents=True, exist_ok=True)
-        overlay = request.output_dir / "overlay.yml"
-        if not overlay.is_file():
-            overlay.write_text("{}\n", encoding="utf-8")
-        manifest["overlay"] = str(overlay)
+    request.output_dir.mkdir(parents=True, exist_ok=True)
+    overlay = request.output_dir / "overlay.yml"
+    source_value = manifest.get("overlay")
+    source_overlay = (
+        Path(str(source_value)).expanduser()
+        if isinstance(source_value, str) and source_value.strip()
+        else None
+    )
+    if source_overlay is not None and not source_overlay.is_absolute():
+        source_overlay = (backend.repo_root / source_overlay).resolve()
+    if source_overlay is not None and source_overlay.is_file():
+        if source_overlay.resolve() != overlay.resolve():
+            overlay.write_bytes(source_overlay.read_bytes())
+    elif not overlay.is_file():
+        overlay.write_text("{}\n", encoding="utf-8")
+    manifest["overlay"] = str(overlay)
     result = backend.rollout_runner(
         candidate=candidate,
         request=request,

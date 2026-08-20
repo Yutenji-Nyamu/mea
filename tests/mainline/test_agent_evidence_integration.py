@@ -37,6 +37,7 @@ def completed_round(
         "candidate_id": "dynamic.tested_candidate",
         "sub_aspect": "object_position",
         "task_instruction": "Evaluate the bounded candidate.",
+        "execution": {"seeds": [7], "num_episodes": 1},
         "observations": ["execution_vqa"] if vqa_conflict else [],
         "semantic_need_execution": {
             "rule_tool": {"requested": False},
@@ -230,6 +231,122 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             ],
         )
 
+    def test_plan_record_uses_one_five_trial_rule_aggregate(self):
+        seeds = [7, 8, 9, 10, 11]
+        tool_episodes = [
+            {
+                "episode_dir": f"act/episode_{index}",
+                "policy_name": "SmolVLA",
+                "seed": seed,
+                "role": "policy_under_evaluation",
+                "result": {
+                    "tool": "terminal_distance",
+                    "value": float(index + 1),
+                    "unit": "m",
+                    "evidence_steps": [100 + index],
+                },
+            }
+            for index, seed in enumerate(seeds)
+        ]
+        aggregate = compact_aggregate_result(
+            aggregate_tool_executions(
+                [
+                    {
+                        "tool_execution": {
+                            "status": "passed",
+                            "tool_spec": {"metric": "terminal_distance"},
+                            "episodes": tool_episodes,
+                        },
+                        "context": {
+                            "round_id": "round_1",
+                            "variant": "bounded_delta",
+                        },
+                    }
+                ]
+            )
+        )
+        round_plan = {
+            "round_id": "round_1",
+            "candidate_id": "dynamic.tested_candidate",
+            "sub_aspect": "bounded_delta",
+            "task_instruction": "Evaluate the bounded candidate.",
+            "execution": {"seeds": seeds, "num_episodes": 5},
+            "tool_request": {"metric": "terminal_distance"},
+            "semantic_need_execution": {
+                "rule_tool": {"requested": True},
+                "vqa_tool": {"requested": False},
+            },
+        }
+        summary = {
+            "round_id": "round_1",
+            "taskgen_returncode": 0,
+            "observations": {
+                "scene_alignment": True,
+                "expert_solvable": True,
+                "actual_seeds": seeds,
+                "policy_success": 0.6,
+                "policy_outcome": {
+                    "metric": "official_check_success",
+                    "authority": "official_check_success",
+                    "official_equivalent": True,
+                    "execution_scope": "official_equivalent",
+                },
+                "outcome_semantics": {
+                    "status": "official_only",
+                    "evidence_conflict": False,
+                },
+                "planned_tool": {
+                    "status": "passed",
+                    "route": "generated_runtime_tool",
+                    "reference_tool": "terminal_distance",
+                    "source": {},
+                    "episodes": [
+                        {
+                            "policy_name": item["policy_name"],
+                            "seed": item["seed"],
+                            "role": item["role"],
+                            "metric": "terminal_distance",
+                            "value": item["result"]["value"],
+                            "unit": "m",
+                            "passed": None,
+                            "evidence_steps": item["result"]["evidence_steps"],
+                            "details": {},
+                        }
+                        for item in tool_episodes
+                    ],
+                },
+                "aggregate": aggregate,
+                "execution_vqa": {
+                    "status": "skipped",
+                    "evidence_conflict": False,
+                },
+            },
+        }
+        summary["observations"]["round_evidence"] = build_round_evidence(
+            round_plan,
+            summary,
+        )
+
+        record = build_plan_agent_evidence_record(round_plan, summary)
+
+        self.assertEqual(record["candidate_evidence"]["outcome"], "mixed")
+        self.assertEqual(record["policy_sample_count"], 5)
+        self.assertEqual(
+            record["planned_tool_evidence"]["unique_episode_count"],
+            5,
+        )
+        self.assertEqual(
+            [
+                item["metric"]
+                for item in record["planned_tool_evidence"]["metrics"]
+            ],
+            ["terminal_distance"],
+        )
+        self.assertIn(
+            "population_stddev",
+            record["open_query_evidence"]["evidence_summary"],
+        )
+
     def test_execution_vqa_uses_generated_result_from_same_episode(self):
         with tempfile.TemporaryDirectory() as temporary:
             repo_root = Path(temporary)
@@ -377,7 +494,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             "round_id": "round_1",
             "template_id": "dynamic.visual_check",
             "observations": ["aggregate", "execution_vqa"],
-            "execution": {"num_episodes": 1},
+            "execution": {"seeds": [7], "num_episodes": 1},
             "tool_request": {"metric": "official_check_success"},
             "semantic_need_execution": {
                 "rule_tool": {"requested": False},
@@ -467,6 +584,39 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
 
         self.assertEqual(record["candidate_evidence"]["outcome"], "unknown")
         self.assertEqual(record["open_query_evidence"]["outcome"], "ambiguous")
+
+    def test_partial_trial_rate_is_one_decisive_mixed_round(self):
+        round_plan, summary = completed_round()
+        round_plan["execution"] = {
+            "seeds": [7, 8, 9, 10, 11],
+            "num_episodes": 5,
+        }
+        summary["observations"]["actual_seeds"] = [7, 8, 9, 10, 11]
+        summary["observations"]["policy_success"] = 0.6
+        summary["observations"]["round_evidence"] = build_round_evidence(
+            round_plan,
+            summary,
+        )
+
+        record = build_plan_agent_evidence_record(round_plan, summary)
+
+        self.assertEqual(record["candidate_evidence"]["outcome"], "mixed")
+        self.assertEqual(record["candidate_evidence"]["score"], 0.6)
+        self.assertEqual(record["policy_sample_count"], 5)
+        self.assertIn(
+            "policy_trial_count=5",
+            record["open_query_evidence"]["evidence_summary"],
+        )
+
+    def test_completed_round_rejects_substituted_trial_seed(self):
+        round_plan, summary = completed_round()
+        summary["observations"]["actual_seeds"] = [8]
+
+        with self.assertRaisesRegex(
+            RoundEvidenceError,
+            "exact requested seed group",
+        ):
+            build_round_evidence(round_plan, summary)
 
     def test_bound_generated_extension_remains_experimentally_decidable(self):
         round_plan, summary = completed_round(

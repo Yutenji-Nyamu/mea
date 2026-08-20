@@ -16,7 +16,7 @@ git rev-parse HEAD
 nvidia-smi
 ```
 
-运行前冻结原始 Query、task/policy binding、checkpoint、seed/N、正整数规划 allowance 与
+运行前冻结原始 Query、task/policy binding、checkpoint、trial seed 组、每任务 trial 数 `M`、正整数规划 allowance 与
 evaluation id。`--generated-rounds` / `--max-agent-rounds` 是防止失控的软 allowance，不是
 论文方法的停止判据；只要下一 Proposal 可执行且仍能增加信息，应继续到 Agent 主动
 stop 并记录其证据理由，或遇到 unsupported、信息饱和或有界局部 repair 连续失败。
@@ -78,8 +78,13 @@ materialization；这不是缺少计划。plan-only 不能预测后续一定生�
 ```
 
 确认当前 live 参数；命令必须显式给出原始 Query、policy/backend、task/checkpoint、
-seed/N、规划 allowance、evaluation id、rollout 软预算和停止条件。生产链只使用 Plan Agent，不启用
+start seed、每任务 trial 数 `M`、规划 allowance、evaluation id、rollout 软预算和停止条件。生产链只使用 Plan Agent，不启用
 legacy task planner、whole-round restart 或 fault injection。
+
+`M` 与自适应 Plan round 数是两个独立维度。普通论文对齐运行默认
+`--num-episodes 5`，每个 control/candidate 使用同一组 seed 并在本轮先聚合，再给 Plan
+一次 RoundEvidence；`M=1` 只用于机制调试。总 episode 预算是各已执行 round 的 `M`
+之和，失败 evaluation 已消耗的 episode 必须与最终有效运行分开报告。
 
 RoboTwin 生成任务必须让 MEA worktree 位于外部 asset/source root 之前：
 `PYTHONPATH="$MEA_REPO:/root/autodl-tmp/RoboTwin"`。生产入口会再次提升 repo root，
@@ -91,8 +96,8 @@ policy server 前终止。
 1. runtime limits 与 Proposal；
 2. 若需要，scene/checker retrieve 或 generate；
 3. fixture/state、render/VLM 与 expert gate；
-4. 同一 binding/seed 的 policy rollout、video 与 telemetry；
-5. Rule/VQA 是否消费该 episode，生成 checker 是否与 official success 分开；
+4. 同一 binding/seed 组的 policy rollouts、video 与 telemetry；
+5. Rule 是否聚合该组 episodes；若请求 VQA，明确其代表 episode，且生成 checker 与 official success 分开；
 6. Aggregate 是否完整进入下一次 Plan Agent decision；
 7. Agent 提出的 stop 是否由已完成 evidence 后置验证；
 8. Answer 是否列出 N、未覆盖项、冲突、停止原因和限制。

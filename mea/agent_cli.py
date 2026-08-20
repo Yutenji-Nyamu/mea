@@ -168,11 +168,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=int,
         default=None,
         help=(
-            "override trusted task seeds; omitted keeps the BBH catalog "
-            "defaults and each other planner's existing default"
+            "first policy-trial seed; each executed Plan round uses the "
+            "contiguous group starting here"
         ),
     )
-    parser.add_argument("--num-episodes", type=int, default=1)
+    parser.add_argument(
+        "--num-episodes",
+        type=int,
+        default=5,
+        help=(
+            "policy trials aggregated within each executed task (paper "
+            "default: 5; use 1 only for transport/mechanism debugging)"
+        ),
+    )
     parser.add_argument(
         "--telemetry-profile",
         choices=["balanced_v1"],

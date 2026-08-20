@@ -275,8 +275,9 @@ def render_final(
         "- Task, policy, Rule, and VQA facts are reported separately.",
         "- Expert evidence, when present, is a solvability/instrumentation "
         "gate, not evaluated-policy performance.",
-        "- Few-shot N=1 rounds demonstrate method wiring, not benchmark-level "
-        "generalization.",
+        "- M=1 rounds demonstrate method wiring only; aggregated multi-trial "
+        "rounds remain scoped to their recorded tasks, checkpoints, and seeds, "
+        "not benchmark-level generalization.",
         "- Missing artifacts are shown as N/A; this report never substitutes "
         "proxy images or invented values.",
         "",

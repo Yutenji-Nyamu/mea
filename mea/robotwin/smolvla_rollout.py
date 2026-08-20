@@ -369,7 +369,7 @@ def run_smolvla_robotwin_episode(
         observed_states.append(initial_state.tolist())
 
         with _PolicyClient(host, port, timeout_seconds) as client:
-            client.request({"command": "reset"})
+            client.request({"command": "reset", "seed": int(seed)})
             while (
                 actions_executed < int(task.step_lim)
                 and not task.eval_success

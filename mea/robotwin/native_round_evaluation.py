@@ -29,8 +29,9 @@ def _trusted_checker_result(
     evaluation: Mapping[str, Any],
     *,
     expected_metric: str,
+    expected_seed: int,
 ) -> dict[str, Any]:
-    """Return the one policy ToolResult that owns the round outcome."""
+    """Return the ToolResult bound to one requested policy seed."""
 
     if evaluation.get("status") != "passed":
         raise NativeAgentRoundError(
@@ -46,13 +47,19 @@ def _trusted_checker_result(
         if isinstance(episode, Mapping)
         and episode.get("role") == "policy_under_evaluation"
     ]
-    if len(policy_episodes) != 1:
+    matching_episodes = [
+        episode
+        for episode in policy_episodes
+        if episode.get("seed") == expected_seed
+    ]
+    if len(matching_episodes) != 1:
         raise NativeAgentRoundError(
-            "trusted checker evaluation requires exactly one policy episode"
+            "trusted checker evaluation requires exactly one policy episode "
+            f"for seed {expected_seed}"
         )
     results = [
         result
-        for result in policy_episodes[0].get("tool_results", [])
+        for result in matching_episodes[0].get("tool_results", [])
         if isinstance(result, Mapping)
         and result.get("tool") == expected_metric
     ]
@@ -84,6 +91,7 @@ def _project_trusted_checker_outcome(
     result = _trusted_checker_result(
         evaluation,
         expected_metric=expected_metric,
+        expected_seed=rollout.seed,
     )
     episode = rollout.episode
     if policy_backend in {"smolvla", "hyvla"}:
@@ -138,12 +146,21 @@ def _project_trusted_checker_outcome(
 
 def evaluate_robotwin_method_round(
     prepared: NativeRoundPreparation,
-    rollout: Any,
+    rollouts: tuple[Any, ...],
     *,
     round_plan: Mapping[str, Any],
     policy_backend: str,
     policy_name: str,
 ) -> NativeRoundEvaluation:
+    if not rollouts:
+        raise NativeAgentRoundError(
+            "native method round requires at least one policy rollout"
+        )
+    actual_seeds = tuple(rollout.seed for rollout in rollouts)
+    if actual_seeds != prepared.seeds:
+        raise NativeAgentRoundError(
+            "native policy rollouts differ from the requested seed sequence"
+        )
     root = prepared.root
     child_dir = prepared.child_dir
     proposal = prepared.proposal
@@ -168,7 +185,12 @@ def evaluate_robotwin_method_round(
         if generated_checker
         else "official_check_success"
     )
-    limitations = ("N=1",)
+    limitations: tuple[str, ...] = ()
+    if len(rollouts) == 1:
+        limitations += (
+            "M=1 is a mechanism/debug observation, not a stable policy "
+            "judgment.",
+        )
     if generated_checker:
         limitations += (
             "The generated checker is experimental, not certified "
@@ -185,8 +207,9 @@ def evaluate_robotwin_method_round(
             "than a reviewed task-specific schema; semantic roles and "
             "thresholds remain unavailable unless directly observed.",
         )
-    semantic_ready = bool(
-        rollout.metadata.get("semantic_telemetry_ready")
+    semantic_ready = all(
+        bool(rollout.metadata.get("semantic_telemetry_ready"))
+        for rollout in rollouts
     )
     trusted_tool_evaluation = (
         {
@@ -212,19 +235,66 @@ def evaluate_robotwin_method_round(
             "episodes": [],
         }
     )
-    authoritative_rollout = rollout
-    checker_result: dict[str, Any] | None = None
+    authoritative_rollouts = rollouts
+    checker_results: tuple[Mapping[str, Any], ...] = ()
     if taskgen_manifest is not None and semantic_ready:
-        authoritative_rollout, checker_result = (
+        policy_episode_seeds = [
+            episode.get("seed")
+            for episode in trusted_tool_evaluation.get("episodes", [])
+            if isinstance(episode, Mapping)
+            and episode.get("role") == "policy_under_evaluation"
+        ]
+        if (
+            len(policy_episode_seeds) != len(prepared.seeds)
+            or any(
+                isinstance(seed, bool) or not isinstance(seed, int)
+                for seed in policy_episode_seeds
+            )
+            or len(set(policy_episode_seeds)) != len(policy_episode_seeds)
+            or set(policy_episode_seeds) != set(prepared.seeds)
+        ):
+            raise NativeAgentRoundError(
+                "trusted checker policy episodes do not match the requested "
+                "seed set"
+            )
+        projected = [
             _project_trusted_checker_outcome(
                 rollout,
                 trusted_tool_evaluation,
                 expected_metric=execution_scope,
                 policy_backend=policy_backend,
             )
-        )
+            for rollout in rollouts
+        ]
+        authoritative_rollouts = tuple(item[0] for item in projected)
+        checker_results = tuple(item[1] for item in projected)
+    success_count = sum(
+        1 for rollout in authoritative_rollouts if rollout.success
+    )
+    trial_count = len(authoritative_rollouts)
+    success_rate = success_count / trial_count
+    aggregate_outcome = (
+        "success"
+        if success_count == trial_count
+        else "failure"
+        if success_count == 0
+        else "ambiguous"
+    )
+    aggregate_rollout = replace(
+        authoritative_rollouts[0],
+        success=success_count == trial_count,
+        metadata={
+            **dict(authoritative_rollouts[0].metadata),
+            "trial_aggregate": {
+                "seeds": list(prepared.seeds),
+                "trial_count": trial_count,
+                "success_count": success_count,
+                "success_rate": success_rate,
+            },
+        },
+    )
     evidence = runtime.evidence(
-        authoritative_rollout,
+        aggregate_rollout,
         EvidenceRequest(
             sub_aspect=str(round_plan["sub_aspect"]),
             hypothesis=query,
@@ -234,22 +304,30 @@ def evaluate_robotwin_method_round(
                 else "unchanged official-scene control"
             ),
             summary=(
-                f"{policy_name} completed one RoboTwin rollout; "
-                f"{execution_scope}={authoritative_rollout.success}."
+                f"{policy_name} completed {trial_count} RoboTwin policy "
+                f"trials on seeds {list(prepared.seeds)}; "
+                f"{execution_scope} success_rate={success_rate:.3f} "
+                f"({success_count}/{trial_count})."
             ),
             limitations=limitations,
             metadata={
                 "policy_backend": policy_backend,
                 "semantic_telemetry_ready": semantic_ready,
-                "trusted_checker_result": checker_result,
+                "seeds": list(prepared.seeds),
+                "trial_count": trial_count,
+                "success_count": success_count,
+                "success_rate": success_rate,
+                "trusted_checker_results": list(checker_results),
             },
         ),
     )
+    evidence = replace(evidence, outcome=aggregate_outcome)
     return NativeRoundEvaluation(
-        authoritative_rollout=authoritative_rollout,
+        authoritative_rollouts=authoritative_rollouts,
         trusted_tool_evaluation=trusted_tool_evaluation,
-        checker_result=checker_result,
+        checker_results=checker_results,
         evidence=evidence,
         execution_scope=execution_scope,
         semantic_ready=semantic_ready,
+        success_rate=success_rate,
     )

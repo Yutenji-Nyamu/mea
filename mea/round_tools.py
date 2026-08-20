@@ -66,34 +66,37 @@ def executed_policy_episode_dirs(child_dir: Path) -> list[Path]:
             if isinstance(manifest, Mapping)
             else None
         )
-        rollout = (
-            method_runtime.get("rollout")
+        rollouts = (
+            method_runtime.get("rollouts")
             if isinstance(method_runtime, Mapping)
             else None
         )
-        if isinstance(rollout, Mapping):
-            artifacts = rollout.get("artifacts")
-            if isinstance(artifacts, Mapping):
-                for key in ("telemetry_episode", "episode_dir"):
-                    candidates.extend(
-                        _episode_path_candidates(root, artifacts.get(key))
-                    )
-            episode = rollout.get("episode")
-            if isinstance(episode, Mapping):
-                candidates.extend(
-                    _episode_path_candidates(
-                        root,
-                        episode.get("episode_dir"),
-                    )
-                )
-                semantic = episode.get("semantic_telemetry")
-                if isinstance(semantic, Mapping):
+        if isinstance(rollouts, list):
+            for rollout in rollouts:
+                if not isinstance(rollout, Mapping):
+                    continue
+                artifacts = rollout.get("artifacts")
+                if isinstance(artifacts, Mapping):
+                    for key in ("telemetry_episode", "episode_dir"):
+                        candidates.extend(
+                            _episode_path_candidates(root, artifacts.get(key))
+                        )
+                episode = rollout.get("episode")
+                if isinstance(episode, Mapping):
                     candidates.extend(
                         _episode_path_candidates(
                             root,
-                            semantic.get("episode_dir"),
+                            episode.get("episode_dir"),
                         )
                     )
+                    semantic = episode.get("semantic_telemetry")
+                    if isinstance(semantic, Mapping):
+                        candidates.extend(
+                            _episode_path_candidates(
+                                root,
+                                semantic.get("episode_dir"),
+                            )
+                        )
     telemetry_roots = (
         root / "evaluation" / "telemetry",
         root / "telemetry",
@@ -102,11 +105,7 @@ def executed_policy_episode_dirs(child_dir: Path) -> list[Path]:
         if telemetry_root.is_dir():
             candidates.extend(
                 path.parent
-                for path in telemetry_root.glob("*/episode_*/schema.json")
-            )
-            candidates.extend(
-                path.parent
-                for path in telemetry_root.glob("episode_*/schema.json")
+                for path in telemetry_root.rglob("episode_*/schema.json")
             )
     unique: dict[str, Path] = {}
     for candidate in candidates:

@@ -107,6 +107,7 @@ def main() -> int:
     action_latencies: list[float] = []
     network_forwards = 0
     request_count = 0
+    trial_seeds: list[int] = []
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((args.host, args.port))
@@ -127,7 +128,27 @@ def main() -> int:
                         send_message(connection, {"ok": True})
                         break
                     if command == "reset":
+                        trial_seed = request.get("seed")
+                        if (
+                            isinstance(trial_seed, bool)
+                            or not isinstance(trial_seed, int)
+                            or trial_seed < 0
+                        ):
+                            send_message(
+                                connection,
+                                {
+                                    "ok": False,
+                                    "error": (
+                                        "reset requires a non-negative int seed"
+                                    ),
+                                },
+                            )
+                            continue
+                        torch.manual_seed(trial_seed)
+                        torch.cuda.manual_seed_all(trial_seed)
+                        np.random.seed(trial_seed)
                         wrapper.reset()
+                        trial_seeds.append(trial_seed)
                         send_message(connection, {"ok": True})
                         continue
                     if command != "act":
@@ -173,6 +194,7 @@ def main() -> int:
     summary = {
         **ready,
         "request_count": request_count,
+        "trial_seeds": trial_seeds,
         "network_forwards": network_forwards,
         "action_latencies_seconds": action_latencies,
         "cuda_peak_allocated_bytes": torch.cuda.max_memory_allocated(),

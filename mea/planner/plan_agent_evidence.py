@@ -241,9 +241,12 @@ def build_plan_agent_evidence_record(
     elif float(success_rate) >= 1.0:
         semantic_outcome = "success"
         candidate_outcome = "pass"
-    else:
+    elif float(success_rate) <= 0.0:
         semantic_outcome = "failure"
         candidate_outcome = "fail"
+    else:
+        semantic_outcome = "ambiguous"
+        candidate_outcome = "mixed"
 
     task_proposal = round_plan.get("task_proposal") or {}
     dynamic_proposal = round_plan.get("proposal") or round_plan.get(
@@ -334,7 +337,25 @@ def build_plan_agent_evidence_record(
             "VQA evidence conflicts with the recorded runtime evidence; this "
             "round cannot support an answered Plan Agent stop."
         )
-    planned_tool_evidence = deepcopy(evidence["rule"]["results"])
+    planned_tool_results = deepcopy(evidence["rule"]["results"])
+    round_aggregate = observations.get("aggregate")
+    planned_tool_evidence: Any = planned_tool_results
+    if evidence["rule"]["requested"] and isinstance(
+        round_aggregate, Mapping
+    ):
+        rule_metric = evidence["rule"]["metric"]
+        planned_tool_evidence = {
+            "status": round_aggregate.get("status"),
+            "unique_episode_count": round_aggregate.get(
+                "unique_episode_count"
+            ),
+            "metrics": [
+                deepcopy(dict(item))
+                for item in round_aggregate.get("metrics", [])
+                if isinstance(item, Mapping)
+                and item.get("metric") == rule_metric
+            ],
+        }
     tool_summary = (
         json.dumps(
             planned_tool_evidence,
@@ -355,6 +376,8 @@ def build_plan_agent_evidence_record(
         f"success_predicate_authority={policy_outcome.get('authority')}; "
         f"success_predicate_semantics={outcome_semantics_status}; "
         f"policy_success_rate={success_rate}; "
+        f"policy_trial_count={len(policy['seeds'])}; "
+        f"policy_trial_seeds={policy['seeds']}; "
         f"Rule status={evidence['rule']['status']}; "
         f"Rule metric={evidence['rule']['metric']}; "
         f"VQA status={evidence['vqa']['status']}; "
@@ -432,7 +455,7 @@ def build_plan_agent_evidence_record(
         if planning_observation is not None
         else None
     )
-    if candidate_outcome == "fail":
+    if candidate_outcome in {"fail", "mixed"}:
         rule_metric = evidence["rule"]["metric"]
         diagnosis = (
             f"Observed policy success_rate={float(success_rate):.6g} for "
@@ -442,8 +465,9 @@ def build_plan_agent_evidence_record(
                 if rule_metric is not None
                 else ""
             )
-            + "; this localizes an observed weakness "
-            "but does not establish a causal mechanism."
+            + "; this is an aggregate observation over "
+            f"{len(policy['seeds'])} paired policy trials and does not by "
+            "itself establish a causal mechanism."
         )
     candidate = {
         "candidate_id": candidate_id,
@@ -465,7 +489,7 @@ def build_plan_agent_evidence_record(
         "planned_tool_evidence": planned_tool_evidence,
         "planning_observation": planning_observation,
         "policy_sample_count": (
-            0 if planning_observation is not None else None
+            0 if planning_observation is not None else len(policy["seeds"])
         ),
         "round_evidence": evidence,
         "evidence_refs": refs,

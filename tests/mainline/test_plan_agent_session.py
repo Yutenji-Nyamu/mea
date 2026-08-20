@@ -309,11 +309,14 @@ def control_record(
         or not official_identity
         else "pass"
         if success_rate >= 1.0
+        else "mixed"
+        if success_rate > 0.0
         else "fail"
     )
     semantic_outcome = {
         "pass": "success",
         "fail": "failure",
+        "mixed": "ambiguous",
         "unknown": "ambiguous",
     }[candidate_outcome]
     return {
@@ -330,6 +333,7 @@ def control_record(
                 "metric": "official_check_success",
                 "authority": authority,
                 "official_equivalent": official_equivalent,
+                "seeds": [7] if success_rate is not None else [],
             },
         },
         "evaluation_outcome": {
@@ -782,6 +786,8 @@ class PlanAgentRuntimeTests(unittest.TestCase):
     def test_control_identity_is_tracked_without_forcing_budgeted_stop(self):
         cases = (
             (control_record(), True),
+            (control_record(success_rate=0.8), True),
+            (control_record(success_rate=0.0), True),
             (
                 control_record(authority="official_check_success_reused"),
                 True,
@@ -814,13 +820,14 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 if not expected_valid:
                     self.assertTrue(
                         any(
-                            "requires a successful unchanged official baseline"
+                            "requires an authoritative completed unchanged "
+                            "official baseline"
                             in limitation
                             for limitation in state["assessment"]["limitations"]
                         )
                     )
 
-    def test_unsuccessful_control_can_schedule_an_unchanged_retry(self):
+    def test_zero_rate_control_is_valid_and_can_schedule_an_unchanged_retry(self):
         session = PlanAgentSession(
             "Where does this policy first expose a weakness?",
             target(max_rounds=3),
@@ -828,6 +835,8 @@ class PlanAgentRuntimeTests(unittest.TestCase):
         )
         failed_control = control_record(success_rate=0.0)
         state = observe_record(session, failed_control)
+
+        self.assertTrue(state["control_passed"])
 
         bound = session.bind_semantic_step(
             official_retry_bundle(),
@@ -879,7 +888,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
             },
         ]
         records = [
-            control_record(success_rate=0.0),
+            control_record(success_rate=0.0, authority=None),
             control_record(
                 round_id="round_2",
                 candidate_id=generated["candidate_id"],
@@ -969,7 +978,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                     },
                 ]
                 records = [
-                    control_record(success_rate=0.0),
+                    control_record(success_rate=0.0, authority=None),
                     control_record(
                         round_id="round_2",
                         candidate_id=candidate["candidate_id"],
@@ -1024,7 +1033,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
             },
         ]
         records = [
-            control_record(success_rate=0.0),
+            control_record(success_rate=0.0, authority=None),
             control_record(
                 round_id="round_2",
                 candidate_id=generated["candidate_id"],
@@ -1085,7 +1094,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
             ],
         ]
         records = [
-            control_record(success_rate=0.0),
+            control_record(success_rate=0.0, authority=None),
             control_record(
                 round_id="round_2",
                 candidate_id=retries[0]["candidate_id"],
@@ -1101,6 +1110,7 @@ class PlanAgentRuntimeTests(unittest.TestCase):
                 candidate_id=retries[1]["candidate_id"],
                 template_id=None,
                 success_rate=0.0,
+                authority=None,
             ),
         ]
 

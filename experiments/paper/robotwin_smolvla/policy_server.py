@@ -96,6 +96,7 @@ def main() -> int:
 
     chunk_latencies: list[float] = []
     request_count = 0
+    trial_seeds: list[int] = []
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind((args.host, args.port))
@@ -130,7 +131,27 @@ def main() -> int:
                         send_message(connection, {"ok": True})
                         break
                     if command == "reset":
+                        trial_seed = request.get("seed")
+                        if (
+                            isinstance(trial_seed, bool)
+                            or not isinstance(trial_seed, int)
+                            or trial_seed < 0
+                        ):
+                            send_message(
+                                connection,
+                                {
+                                    "ok": False,
+                                    "error": (
+                                        "reset requires a non-negative int seed"
+                                    ),
+                                },
+                            )
+                            continue
+                        torch.manual_seed(trial_seed)
+                        torch.cuda.manual_seed_all(trial_seed)
+                        np.random.seed(trial_seed)
                         policy.reset()
+                        trial_seeds.append(trial_seed)
                         send_message(connection, {"ok": True})
                         continue
                     if command != "act_chunk":
@@ -209,6 +230,7 @@ def main() -> int:
 
     summary = {
         "request_count": request_count,
+        "trial_seeds": trial_seeds,
         "chunk_latencies_seconds": chunk_latencies,
         "cuda_peak_allocated_bytes": torch.cuda.max_memory_allocated(),
         "cuda_peak_reserved_bytes": torch.cuda.max_memory_reserved(),

@@ -23,13 +23,12 @@ def assemble_robotwin_method_round(
 ) -> dict[str, Any]:
     evaluation_root = prepared.evaluation_root
     contract = prepared.contract
-    seed = prepared.seed
+    seeds = prepared.seeds
     run_id = prepared.run_id
     child_dir = prepared.child_dir
     candidate = prepared.candidate
     taskgen_manifest = prepared.taskgen_manifest
-    rollout = evaluated.authoritative_rollout
-    authoritative_rollout = evaluated.authoritative_rollout
+    authoritative_rollouts = evaluated.authoritative_rollouts
     trusted_tool_evaluation = evaluated.trusted_tool_evaluation
     evidence = evaluated.evidence
     execution_scope = evaluated.execution_scope
@@ -37,7 +36,7 @@ def assemble_robotwin_method_round(
     result_path = child_dir / "evaluation" / "_result.txt"
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(
-        f"{1.0 if authoritative_rollout.success else 0.0}\n",
+        f"{evaluated.success_rate}\n",
         encoding="utf-8",
     )
     scene_validation = (
@@ -45,8 +44,11 @@ def assemble_robotwin_method_round(
         if taskgen_manifest is not None
         else {
             "render_success": (
-                _artifact_exists(rollout.artifacts.get("initial_frame"))
-                or _artifact_exists(rollout.artifacts.get("video"))
+                all(
+                    _artifact_exists(rollout.artifacts.get("initial_frame"))
+                    or _artifact_exists(rollout.artifacts.get("video"))
+                    for rollout in authoritative_rollouts
+                )
             ),
             "rule_check": {
                 "passed": True,
@@ -77,24 +79,32 @@ def assemble_robotwin_method_round(
             if taskgen_manifest is not None
             else "official_passthrough"
         ),
+        "materialization_anchor_seed": prepared.materialization_anchor_seed,
         "policy_backend": policy_backend,
         "scene_validation": scene_validation,
         "act_evaluation": {
             "passed": True,
-            "actual_seeds": [seed],
+            "actual_seeds": list(seeds),
             "policy_name": policy_name,
             "outcome_metric": execution_scope,
-            "outcome_value": authoritative_rollout.success,
-            "episode_latched_success": (
-                authoritative_rollout.episode.get(
-                    "episode_latched_success"
-                )
+            "outcome_value": evaluated.success_rate,
+            "success_count": sum(
+                1 for rollout in authoritative_rollouts if rollout.success
             ),
-            "official_core_predicate_satisfied": (
-                authoritative_rollout.episode.get(
-                    "official_core_predicate_satisfied"
-                )
-            ),
+            "trial_count": len(authoritative_rollouts),
+            "episode_results": [
+                {
+                    "seed": rollout.seed,
+                    "outcome_value": rollout.success,
+                    "episode_latched_success": rollout.episode.get(
+                        "episode_latched_success"
+                    ),
+                    "official_core_predicate_satisfied": rollout.episode.get(
+                        "official_core_predicate_satisfied"
+                    ),
+                }
+                for rollout in authoritative_rollouts
+            ],
         },
         "task_artifact_summary": task_artifact_summary,
         "trusted_tool_evaluation": trusted_tool_evaluation,
@@ -116,7 +126,9 @@ def assemble_robotwin_method_round(
         "method_runtime": {
             "binding": prepared.binding.to_dict(),
             "candidate": candidate.to_dict(),
-            "rollout": authoritative_rollout.to_dict(),
+            "rollouts": [
+                rollout.to_dict() for rollout in authoritative_rollouts
+            ],
             "evidence": evidence.to_dict(),
         },
     }

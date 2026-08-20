@@ -10,6 +10,25 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class ProductionCliBoundaryTests(unittest.TestCase):
+    def test_policy_trials_default_to_five_and_allow_explicit_debug_one(self) -> None:
+        from unittest.mock import patch
+
+        from mea.agent_cli import parse_args
+
+        with patch("sys.argv", ["manipeval_agent.py", "--request", "q"]):
+            self.assertEqual(parse_args().num_episodes, 5)
+        with patch(
+            "sys.argv",
+            [
+                "manipeval_agent.py",
+                "--request",
+                "q",
+                "--num-episodes",
+                "1",
+            ],
+        ):
+            self.assertEqual(parse_args().num_episodes, 1)
+
     def test_round_allowance_is_positive_not_a_small_method_cap(self) -> None:
         from unittest.mock import patch
 

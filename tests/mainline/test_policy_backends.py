@@ -60,6 +60,7 @@ from mea.robotwin.smolvla_rollout import (
     run_smolvla_robotwin_episode,
 )
 from mea.round_evidence import aggregate_sources
+from mea.round_tools import executed_policy_episode_dirs
 
 
 def _write_official_task(root, task_name: str, description: str) -> None:
@@ -413,7 +414,7 @@ def test_generated_round_does_not_promote_official_base_task_context(
     assert retained == capabilities
 
 
-def test_native_schema_less_control_persists_runtime_task_context(tmp_path):
+def test_native_control_runs_exact_paired_seeds_and_aggregates_once(tmp_path):
     _write_official_task(tmp_path, "alpha_task", "move the alpha object")
     checkpoint = tmp_path / "smolvla"
     checkpoint.mkdir()
@@ -426,11 +427,34 @@ def test_native_schema_less_control_persists_runtime_task_context(tmp_path):
         policy_spec=build_smolvla_policy_spec(checkpoint),
     )
 
-    def rollout_runner(*, candidate, **_kwargs):
+    rollout_calls = []
+    successes = {11: True, 12: False, 13: True, 14: False, 15: True}
+
+    def rollout_runner(*, candidate, request, **_kwargs):
         assert candidate.task_contract["task_schema_available"] is True
+        telemetry_episode = (
+            request.output_dir
+            / "telemetry"
+            / "act"
+            / f"episode_000_seed_{request.seed}"
+        )
+        telemetry_episode.mkdir(parents=True)
+        (telemetry_episode / "schema.json").write_text(
+            "{}\n",
+            encoding="utf-8",
+        )
+        rollout_calls.append(
+            {
+                "candidate": candidate,
+                "seed": request.seed,
+                "output_dir": request.output_dir,
+            }
+        )
         return {
-            "success": True,
-            "episode": {"official_check_success": True},
+            "success": successes[request.seed],
+            "episode": {
+                "official_check_success": successes[request.seed]
+            },
             "artifacts": {},
             "metadata": {"semantic_telemetry_ready": True},
         }
@@ -453,7 +477,10 @@ def test_native_schema_less_control_persists_runtime_task_context(tmp_path):
                 "task_instruction": "Can the policy solve the official task?",
                 "task_name": "alpha_task",
                 "route": "official",
-                "execution": {"seeds": [11]},
+                "execution": {
+                    "seeds": [11, 12, 13, 14, 15],
+                    "num_episodes": 5,
+                },
             },
             runtime_target=target,
             telemetry_profile="balanced_v1",
@@ -461,6 +488,30 @@ def test_native_schema_less_control_persists_runtime_task_context(tmp_path):
 
     probe.assert_called_once()
     manifest = result["child_manifest"]
+    assert [call["seed"] for call in rollout_calls] == [11, 12, 13, 14, 15]
+    assert len({id(call["candidate"]) for call in rollout_calls}) == 1
+    assert len({call["output_dir"] for call in rollout_calls}) == 5
+    assert all(call["output_dir"].is_dir() for call in rollout_calls)
+    assert manifest["materialization_anchor_seed"] == 11
+    assert manifest["act_evaluation"]["actual_seeds"] == [
+        11,
+        12,
+        13,
+        14,
+        15,
+    ]
+    assert manifest["act_evaluation"]["success_count"] == 3
+    assert manifest["act_evaluation"]["trial_count"] == 5
+    assert manifest["act_evaluation"]["outcome_value"] == pytest.approx(0.6)
+    assert [
+        rollout["seed"]
+        for rollout in manifest["method_runtime"]["rollouts"]
+    ] == [11, 12, 13, 14, 15]
+    assert manifest["method_runtime"]["evidence"]["outcome"] == "ambiguous"
+    assert manifest["method_runtime"]["evidence"]["metadata"][
+        "success_rate"
+    ] == pytest.approx(0.6)
+    assert len(executed_policy_episode_dirs(result["child_dir"])) == 5
     assert manifest["runtime_task_context"]["schema_origin"] == (
         "runtime_probe"
     )
@@ -1181,6 +1232,7 @@ def test_native_method_evidence_uses_trusted_generated_checker_result():
         "episodes": [
             {
                 "role": "policy_under_evaluation",
+                "seed": 17,
                 "tool_results": [
                     {
                         "tool": "generated_check_success",
@@ -1192,7 +1244,22 @@ def test_native_method_evidence_uses_trusted_generated_checker_result():
                         },
                     }
                 ],
-            }
+            },
+            {
+                "role": "policy_under_evaluation",
+                "seed": 18,
+                "tool_results": [
+                    {
+                        "tool": "generated_check_success",
+                        "value": False,
+                        "passed": False,
+                        "details": {
+                            "generated_checker_success": False,
+                            "official_core_predicate_satisfied": True,
+                        },
+                    }
+                ],
+            },
         ],
     }
 
@@ -1211,6 +1278,29 @@ def test_native_method_evidence_uses_trusted_generated_checker_result():
         "authority": "llm_generated_python_ast_validated",
         "value": True,
     }
+    second_rollout = RolloutObservation(
+        benchmark="robotwin",
+        round_id="round_1",
+        candidate_id="generated_candidate",
+        seed=18,
+        success=True,
+        episode={
+            "active_checker_metric": "generated_check_success",
+            "generated_checker_success": False,
+            "official_check_success": True,
+            "official_core_predicate_satisfied": True,
+            "episode_latched_success": False,
+        },
+        native_episode={},
+    )
+    second_projected, second_result = _project_trusted_checker_outcome(
+        second_rollout,
+        trusted,
+        expected_metric="generated_check_success",
+        policy_backend="smolvla",
+    )
+    assert second_projected.success is False
+    assert second_result["value"] is False
     evidence = build_round_evidence(
         projected,
         EvidenceRequest(

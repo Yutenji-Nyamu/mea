@@ -52,7 +52,7 @@ def execute_robotwin_method_round(
     )
     if not isinstance(prepared, NativeRoundPreparation):
         return prepared
-    rollout = invoke_robotwin_policy(
+    rollouts = invoke_robotwin_policy(
         prepared,
         round_plan=round_plan,
         evaluation_id=evaluation_id,
@@ -60,7 +60,7 @@ def execute_robotwin_method_round(
     )
     evaluated = evaluate_robotwin_method_round(
         prepared,
-        rollout,
+        rollouts,
         round_plan=round_plan,
         policy_backend=policy_backend,
         policy_name=policy_name,

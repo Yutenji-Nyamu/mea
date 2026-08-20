@@ -4,6 +4,9 @@ This is the first current-revision live run in this repository that combines, in
 one production invocation, an anchor-free broad Query, evidence-conditioned
 Proposal refinement, later real rollouts, a supported scoped Answer, and an
 Agent-authored stop. It is a bounded method example, not a policy benchmark.
+This frozen run used `M=1` per task and therefore proves transport and adaptive
+method closure only; it is not a stable policy judgment. Current production
+defaults to five within-task trials and aggregates them before the next Plan.
 
 ## Entry and exact Query
 
@@ -32,7 +35,7 @@ unset UIUI_API_KEY
 The completed evaluation is
 `eval_20260820_batch46_move_playingcard_anchorfree_adaptive_s1000_v5`, run from
 revision `e9e3880b3fbf4cecd5877a4732d2aca0701d6295` with the shared SmolVLA
-checkpoint, seed `1000`, `N=1` per executed round, and a cap of five rounds.
+checkpoint, seed `1000`, `M=1` trial per executed round, and a cap of five rounds.
 History was disabled and execution VQA was not requested.
 
 ## Three-round evidence chain
@@ -52,7 +55,7 @@ Batch44/45, `+0.015 m`, or verified-anchor leakage.
 
 The final Answer is byte-for-byte consistent between the Plan query answer,
 `answer/answer.json`, and the top-level manifest. Its structured scope is
-`N=3`, seeds `[1000]`, two tested generated candidates, no evidence conflict,
+three total policy episodes, seeds `[1000]`, two tested generated candidates, no evidence conflict,
 `termination=agent_stop`, and `claim_verdict=supported`.
 
 ## What this closes—and what it does not

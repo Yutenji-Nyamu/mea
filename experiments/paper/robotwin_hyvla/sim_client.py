@@ -98,7 +98,7 @@ def main() -> int:
     client.settimeout(180)
 
     try:
-        request(client, {"command": "reset"})
+        request(client, {"command": "reset", "seed": int(args.seed)})
         task.setup_demo(
             now_ep_num=0,
             seed=args.seed,

@@ -153,7 +153,7 @@ def run_hyvla_robotwin_episode(
         video_frames.append(initial_head)
 
         with _PolicyClient(host, port, timeout_seconds) as client:
-            client.request({"command": "reset"})
+            client.request({"command": "reset", "seed": int(seed)})
             while len(actions) < int(task.step_lim) and not task.eval_success:
                 response = client.request(
                     _request_payload(observation, instruction)

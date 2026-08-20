@@ -64,7 +64,8 @@ class NativeRoundPreparation:
     root: Path
     evaluation_root: Path
     contract: Mapping[str, Any]
-    seed: int
+    seeds: tuple[int, ...]
+    materialization_anchor_seed: int
     proposal: Mapping[str, Any] | None
     generated_task_required: bool
     run_id: str
@@ -79,9 +80,10 @@ class NativeRoundPreparation:
 
 @dataclass(frozen=True)
 class NativeRoundEvaluation:
-    authoritative_rollout: Any
+    authoritative_rollouts: tuple[Any, ...]
     trusted_tool_evaluation: Mapping[str, Any]
-    checker_result: Mapping[str, Any] | None
+    checker_results: tuple[Mapping[str, Any], ...]
     evidence: Any
     execution_scope: str
     semantic_ready: bool
+    success_rate: float

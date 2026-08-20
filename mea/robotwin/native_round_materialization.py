@@ -65,14 +65,30 @@ def prepare_robotwin_method_round(
     seeds = execution.get("seeds") if isinstance(execution, Mapping) else None
     if (
         not isinstance(seeds, list)
-        or len(seeds) != 1
-        or isinstance(seeds[0], bool)
-        or not isinstance(seeds[0], int)
+        or not seeds
+        or any(
+            isinstance(seed, bool)
+            or not isinstance(seed, int)
+            or seed < 0
+            for seed in seeds
+        )
+        or len(set(seeds)) != len(seeds)
     ):
         raise NativeAgentRoundError(
-            f"native {policy_name} production rounds require exactly one seed"
+            f"native {policy_name} production rounds require a non-empty "
+            "list of unique non-negative integer seeds"
         )
-    seed = int(seeds[0])
+    declared_episode_count = execution.get("num_episodes")
+    if declared_episode_count is not None and (
+        isinstance(declared_episode_count, bool)
+        or not isinstance(declared_episode_count, int)
+        or declared_episode_count != len(seeds)
+    ):
+        raise NativeAgentRoundError(
+            "execution.num_episodes must equal the number of requested seeds"
+        )
+    execution_seeds = tuple(int(seed) for seed in seeds)
+    materialization_anchor_seed = execution_seeds[0]
     proposal_value = round_plan.get("proposal") or round_plan.get(
         "experiment_candidate"
     )
@@ -156,11 +172,8 @@ def prepare_robotwin_method_round(
             )
     else:
         child_dir.mkdir(parents=True, exist_ok=True)
-    rollout_dir = (
-        child_dir / rollout_output_subdir
-        if rollout_output_subdir is not None
-        else child_dir
-    )
+    round_output_dir = child_dir / (rollout_output_subdir or "evaluation")
+    rollout_dir = round_output_dir / "telemetry" / "rollouts"
     backend = RoboTwinMethodBackend(
         repo_root=root,
         rollout_runner=rollout_runner,
@@ -194,7 +207,7 @@ def prepare_robotwin_method_round(
         candidate = backend.official_candidate(
             binding,
             source_query=query,
-            seed=seed,
+            seed=materialization_anchor_seed,
             candidate_id=str(
                 round_plan.get("candidate_id")
                 or round_plan.get("template_id")
@@ -210,7 +223,7 @@ def prepare_robotwin_method_round(
                     source_query=proposal["source_query"],
                     proposal_bundle=proposal,
                     output_dir=child_dir,
-                    seed=seed,
+                    seed=materialization_anchor_seed,
                     context={
                         "taskgen_run_id": run_id,
                         "requested_max_reflections": max_reflections,
@@ -255,7 +268,8 @@ def prepare_robotwin_method_round(
         root=root,
         evaluation_root=evaluation_root,
         contract=contract,
-        seed=seed,
+        seeds=execution_seeds,
+        materialization_anchor_seed=materialization_anchor_seed,
         proposal=proposal,
         generated_task_required=generated_task_required,
         run_id=run_id,

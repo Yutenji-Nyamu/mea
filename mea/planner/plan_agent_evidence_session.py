@@ -16,8 +16,8 @@ from .query_interpretation import _nonempty_text
 
 
 _BASELINE_LIMITATION = (
-    "A supported or refuted answer requires a successful unchanged official "
-    "baseline; no valid baseline has completed yet."
+    "A supported or refuted answer requires an authoritative completed "
+    "unchanged official baseline; no valid baseline has completed yet."
 )
 _VALID_OFFICIAL_BASELINE_IDENTITIES = frozenset(
     {
@@ -43,7 +43,7 @@ _VALID_OFFICIAL_BASELINE_IDENTITIES = frozenset(
 )
 
 
-def _baseline_passed(record: Mapping[str, Any]) -> bool:
+def _baseline_completed(record: Mapping[str, Any]) -> bool:
     evidence = record["round_evidence"]
     policy = evidence["policy"]
     evaluation_outcome = record["evaluation_outcome"]
@@ -61,8 +61,9 @@ def _baseline_passed(record: Mapping[str, Any]) -> bool:
     return bool(
         authority_valid
         and policy["success_rate"] is not None
-        and record["candidate_evidence"]["outcome"] == "pass"
-        and float(policy["success_rate"]) >= 1.0
+        and record["candidate_evidence"]["outcome"]
+        in {"pass", "fail", "mixed"}
+        and policy["seeds"]
     )
 
 
@@ -214,7 +215,7 @@ class PlanAgentEvidenceMixin:
                 if index == 0 or _is_unchanged_official_retry(plan)
             }
             baseline_valid = any(
-                _baseline_passed(records[index])
+                _baseline_completed(records[index])
                 for index in sorted(baseline_attempt_indexes)
             )
         candidate_start = 1 if self.require_control_anchor else 0

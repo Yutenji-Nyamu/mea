@@ -4,6 +4,18 @@
 历史运行摘要见 [`docs/evidence/history.jsonl`](evidence/history.jsonl)，当前紧凑证据入口见
 [`docs/evidence/current/`](evidence/current/README.md)。
 
+## 当前最高优先级：任务内五次 trial 聚合
+
+论文把自适应规划规模与每个 constructed task 内的 rollout 数分开：Plan 根据前一轮
+聚合结果继续提出任务，而 Appendix A.1.1 的普通默认是每个 constructed task 执行并聚合
+5 次 trial。项目现采用相同的显式 seed 组运行 official control 与所有 candidates，这是
+公平配对的实现选择，不是论文逐字规定。`M=1` 只用于 transport/mechanism debug，不能形成
+稳定 policy 判断；最终成功运行的 episode 与失败尝试消耗必须分别报告。
+
+因此下述 Batch37/46 都是重要的历史方法证据，但其单 seed 结果不是论文默认 trial 预算下的
+稳定性证据。当前主干先完成通用 `M=5 -> Aggregate -> one RoundEvidence -> Plan`，再以新的
+anchor-free broad Query 重跑；规划 round 数仍按信息增益自适应，不固定为五轮。
+
 ## 当前方法真值
 
 当前证据有两条互补的 RoboTwin 主线。较宽的多轮探索旗舰仍是
@@ -30,7 +42,8 @@
 
 当前精简代码上最贴合论文主循环的单次闭环是 Batch46 v5：它把 broad Query、真实对照、
 evidence-conditioned refinement、后续真实 rollout、充分 Answer 与 Agent 主动停止合在同一运行。
-该运行只有一个 task、一个 seed 和三个 episode；它补齐方法闭环，不替换 Batch37 的较宽探索证据。
+该运行只有一个 task、一个 seed 和三个 episode；它补齐方法闭环，不替换 Batch37 的较宽探索证据，
+也不构成默认五 trial 下的稳定 policy 判断。
 
 ## Batch46 当前精简主干的 anchor-free 充分闭环
 
@@ -47,7 +60,7 @@ R1 unchanged official control 成功后，Plan 首次提出 `playingcards y +0.0
 全部真实边界，真实 rollout 仍 official failure，Rule 值为 `0.05292544141411781 m`。
 
 R3 后 Plan 在五轮上限尚未用尽时原始输出 `stop`、`supported`、
-`evidence_sufficient=true`。最终结构化范围为 `N=3`、seeds `[1000]`、两个已测试 candidate、
+`evidence_sufficient=true`。最终结构化范围为三个 policy episodes、seeds `[1000]`、两个已测试 candidate、
 无 evidence conflict、`termination=agent_stop`；Plan query answer、最终 answer 与 manifest 文本一致。
 这关闭的是单 task、单 checkpoint、单 seed 下的 existential 方法正例，不证明跨 seed/任务泛化、
 policy 总体成功率、VQA accuracy 或样本效率。完整记录见
