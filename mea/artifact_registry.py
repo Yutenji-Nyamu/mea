@@ -51,9 +51,6 @@ def _validate_entry(value: Mapping[str, Any]) -> dict[str, Any]:
         "kind",
         "semantic_key",
         "artifact_path",
-        "validation",
-        "source_query",
-        "reuse_count",
     }
     if set(value) != expected:
         raise ArtifactRegistryError("artifact entry fields are invalid")
@@ -63,28 +60,17 @@ def _validate_entry(value: Mapping[str, Any]) -> dict[str, Any]:
     artifact_path = value["artifact_path"]
     if not isinstance(artifact_path, str) or not artifact_path.strip():
         raise ArtifactRegistryError("artifact_path must be a non-empty string")
-    source_query = value["source_query"]
-    if not isinstance(source_query, str) or not source_query.strip():
-        raise ArtifactRegistryError("source_query must be a non-empty string")
-    reuse_count = value["reuse_count"]
-    if isinstance(reuse_count, bool) or not isinstance(reuse_count, int):
-        raise ArtifactRegistryError("reuse_count must be an integer")
-    if reuse_count < 0:
-        raise ArtifactRegistryError("reuse_count must be non-negative")
     return {
         "kind": kind,
         "semantic_key": _canonical_value(
             value["semantic_key"], field="semantic_key"
         ),
         "artifact_path": artifact_path,
-        "validation": _canonical_value(value["validation"], field="validation"),
-        "source_query": source_query,
-        "reuse_count": reuse_count,
     }
 
 
 class ArtifactRegistry:
-    """Persist and retrieve the six fields shared by generated artifacts."""
+    """Persist and retrieve the three lookup fields shared by artifacts."""
 
     def __init__(self, index_path: str | Path):
         self.index_path = Path(index_path)
@@ -124,8 +110,6 @@ class ArtifactRegistry:
         kind: str,
         semantic_key: Mapping[str, Any],
         artifact_path: str | Path,
-        validation: Mapping[str, Any],
-        source_query: str,
     ) -> dict[str, Any]:
         """Add a validated artifact, or return the existing exact match."""
 
@@ -134,9 +118,6 @@ class ArtifactRegistry:
                 "kind": kind,
                 "semantic_key": semantic_key,
                 "artifact_path": str(artifact_path),
-                "validation": validation,
-                "source_query": source_query,
-                "reuse_count": 0,
             }
         )
         entries = self._load()
@@ -148,10 +129,7 @@ class ArtifactRegistry:
             )
             if current_identity != identity:
                 continue
-            if (
-                current["artifact_path"] != entry["artifact_path"]
-                or current["validation"] != entry["validation"]
-            ):
+            if current["artifact_path"] != entry["artifact_path"]:
                 raise ArtifactRegistryError(
                     "semantic key is already bound to a different artifact"
                 )
@@ -166,9 +144,9 @@ class ArtifactRegistry:
         kind: str,
         semantic_key: Mapping[str, Any],
     ) -> dict[str, Any] | None:
-        """Return an exact match and record one successful reuse."""
+        """Return an exact match."""
 
-        return self.mark_reuse(kind=kind, semantic_key=semantic_key)
+        return self.find(kind=kind, semantic_key=semantic_key)
 
     def find(
         self,
@@ -176,7 +154,7 @@ class ArtifactRegistry:
         kind: str,
         semantic_key: Mapping[str, Any],
     ) -> dict[str, Any] | None:
-        """Return an exact match without recording a completed reuse."""
+        """Return an exact match."""
 
         if kind not in ARTIFACT_KINDS:
             raise ArtifactRegistryError(f"unsupported artifact kind: {kind!r}")
@@ -187,28 +165,6 @@ class ArtifactRegistry:
                 entry["kind"] == kind
                 and _canonical_key(entry["semantic_key"]) == key
             ):
-                return deepcopy(entry)
-        return None
-
-    def mark_reuse(
-        self,
-        *,
-        kind: str,
-        semantic_key: Mapping[str, Any],
-    ) -> dict[str, Any] | None:
-        """Record one successfully materialized exact reuse."""
-
-        if kind not in ARTIFACT_KINDS:
-            raise ArtifactRegistryError(f"unsupported artifact kind: {kind!r}")
-        key = _canonical_key(semantic_key)
-        entries = self._load()
-        for entry in entries:
-            if (
-                entry["kind"] == kind
-                and _canonical_key(entry["semantic_key"]) == key
-            ):
-                entry["reuse_count"] += 1
-                self._write(entries)
                 return deepcopy(entry)
         return None
 

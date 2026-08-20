@@ -59,11 +59,10 @@ Rules:
 - A `derived_observable` is a new Query-induced Rule Tool. Implement only its
   described observable over declared signals; never replace it with the
   nearest older operator or invent an undeclared signal.
-- A derived Tool is admitted only after a separate development-agent semantic
-  review plus AST, declared-signal, deterministic execution, finite
-  scalar/unit/evidence, and artifact-immutability checks. This is not
-  independent human/model validation. The gates authorize trajectory
-  measurement only; generated code never defines task success or reward.
+- A derived Tool is admitted only after AST, declared-signal, two-run
+  deterministic execution, finite scalar/unit/evidence, and read-only
+  telemetry checks. These runtime gates authorize trajectory measurement only;
+  generated code never defines task success or reward.
 
 ## Generated Tool library
 

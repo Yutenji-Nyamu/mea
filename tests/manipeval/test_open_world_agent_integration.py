@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from mea.planner.experiment_candidate import build_experiment_candidate
+from mea.planner.evidence_policy import build_round_evidence
 from mea.planner.plan_agent_evidence import build_plan_agent_evidence_record
 from mea.planner.plan_agent_provider import PlanAgent
 from mea.round_evidence import compact_tool_evaluation
@@ -411,6 +412,10 @@ class OpenWorldAgentIntegrationTest(unittest.TestCase):
                 tool_evaluation={"status": "passed", "episodes": []},
                 aggregate_result={"status": "passed"},
                 execution_vqa={"status": "skipped"},
+            )
+            result["observations"]["round_evidence"] = build_round_evidence(
+                round_plan,
+                result,
             )
 
         self.assertTrue(result["pipeline_passed"])

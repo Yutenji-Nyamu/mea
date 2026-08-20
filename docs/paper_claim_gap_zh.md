@@ -240,8 +240,8 @@ numeric oracle 均通过，得到 `0.17870217561721802 m`。R3 异场景成功 e
 
 ## 软件工程边界
 
-- 生产只保留 Plan Agent 主链；fixed/catalog/task-specific planner 属于
-  `experiments/paper/` 或 compat。
+- 生产只保留 Plan Agent 主链；fixed/catalog/task-specific planner 可执行框架已删除，
+  旧实验只保留冻结 paper inputs/results，并由 Git 历史恢复实现。
 - Task binding 只保存 task/checkpoint/schema/official-success/runtime hooks，不承载
   aspect、metric 或 Planner 菜单。
 - TaskGen、ToolGen 各只保留一次局部 repair；失败不触发中央 whole-round restart。

@@ -83,12 +83,11 @@ class OpenToolRequestAgent:
             "required_signals MUST contain 1-8 advertised signal names, and "
             "null_semantics MUST be exactly null_if_no_finite_sample. Include "
             "all three fields in every complete response, including repairs. "
-            "Also provide a precise physical unit. ToolGen will run a separate "
-            "development-agent semantic review against this contract, "
-            "restrict the implementation to those "
-            "signals, and run deterministic finite-output and artifact-"
-            "immutability checks on recorded telemetry. This is measurement "
-            "evidence only, never success or reward authority."
+            "Also provide a precise physical unit. ToolGen will require the "
+            "implementation to directly implement this description using only "
+            "those signals, preserve the unit, and return measurement evidence "
+            "rather than success or reward. It then runs deterministic finite-"
+            "output and read-only checks on recorded telemetry."
             if derived_available
             else (
                 "An independent oracle broker is unavailable in this run. "

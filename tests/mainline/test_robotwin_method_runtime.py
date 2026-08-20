@@ -37,26 +37,9 @@ from mea.toolkit import evaluate_telemetry_root
 class _Provider:
     def __init__(self) -> None:
         self.calls = 0
-        self.review_calls = 0
         self.last_metadata: dict[str, Any] = {}
 
     def text(self, prompt: str, **_kwargs: Any) -> str:
-        if "TaskGen's separate checker semantic-review pass" in prompt:
-            self.review_calls += 1
-            self.last_metadata = {"review_call": self.review_calls}
-            return json.dumps(
-                {
-                    "schema_version": 1,
-                    "status": "approved",
-                    "checks": {
-                        "implements_every_checker_requirement": True,
-                        "preserves_quantifiers_and_temporal_relations": True,
-                        "uses_direct_current_simulator_observables": True,
-                        "does_not_substitute_correlated_proxy": True,
-                    },
-                    "reason": "The fixture checker directly implements its Proposal.",
-                }
-            )
         self.calls += 1
         self.last_metadata = {"call": self.calls}
         return json.dumps(
@@ -248,7 +231,6 @@ def test_robotwin_runtime_bind_materialize_rollout_evidence_contract(
     )
 
     assert provider.calls == 1
-    assert provider.review_calls == 1
     assert binding.binding_id == "runtime_task/ACT"
     assert materialized.validation["route"] == (
         "generic_provider_scene_checker_codegen"
@@ -256,6 +238,7 @@ def test_robotwin_runtime_bind_materialize_rollout_evidence_contract(
     assert observed["manifest"]["task_module"].startswith(
         "mea.generated_tasks.run_runtime_contract"
     )
+    assert "base_commit" not in observed["manifest"]
     assert Path(observed["manifest"]["overlay"]).is_file()
     assert rollout.episode["generated_checker_success"] is True
     assert rollout.metadata["taskgen_route"] == (
@@ -550,113 +533,6 @@ def test_method_runtime_owns_accepted_taskgen_materialization(
     assert materialized.validation["taskgen"]["vision_validation"][
         "passed"
     ] is True
-
-
-def test_runtime_rejects_checker_review_not_bound_to_acceptance(
-    tmp_path: Path,
-) -> None:
-    adapter = _adapter(tmp_path)
-    backend = RoboTwinMethodBackend(
-        repo_root=tmp_path,
-        task_adapter_factory=lambda _task_name: adapter,
-        rollout_runner=lambda **_kwargs: {},
-    )
-    binding = backend.bind_task(
-        BackendBindingRequest(
-            task_reference={
-                "task_name": "runtime_task",
-                "policy": {"name": "SmolVLA", "backend": "smolvla"},
-            }
-        )
-    )
-    query = "Does an added exact condition expose a failure?"
-    proposal = build_experiment_candidate(
-        source_query=query,
-        base_task="runtime_task",
-        semantic_concern="exact checker relation",
-        scene_need="Change the target scene.",
-        checker_need="Require the exact current target relation.",
-        candidate_id="dynamic.runtime.exact_checker",
-    )
-    run_dir = tmp_path / "run_review_tamper"
-    run_dir.mkdir()
-    task_source = "class generated_runtime_task:\n    pass\n"
-    task_path = run_dir / "task.py"
-    task_path.write_text(task_source, encoding="utf-8")
-    review = {
-        "schema_version": 1,
-        "status": "approved",
-        "checks": {
-            "implements_every_checker_requirement": True,
-            "preserves_quantifiers_and_temporal_relations": True,
-            "uses_direct_current_simulator_observables": True,
-            "does_not_substitute_correlated_proxy": True,
-        },
-        "reason": "The checker directly implements the exact relation.",
-        "authority": "development_agent_proxy",
-    }
-    (run_dir / "candidate_manifest.json").write_text(
-        json.dumps(
-            {
-                "checker_semantic_review": review,
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    (run_dir / "manifest.json").write_text("{}\n", encoding="utf-8")
-    (run_dir / "overlay.yml").write_text("{}\n", encoding="utf-8")
-    manifest = {
-        "schema_version": 1,
-        "run_id": run_dir.name,
-        "status": "generated",
-        "task_name": "runtime_task",
-        "task_module": "mea.generated_tasks.run_review_tamper.task",
-        "proposal": proposal,
-        "provider": {"provider_call_count": 2},
-        "task_generation_acceptance": {
-            "status": "accepted",
-            "act_rollouts_started_before_acceptance": 0,
-            "visual_self_check_required": True,
-            "checker_semantic_review": {
-                **review,
-                "reason": "This deliberately differs from the candidate review.",
-            },
-        },
-        "scene_validation": {
-            "generic_preflight": {
-                "render_passed": True,
-                "expert_passed": True,
-                "scene_change_passed": True,
-                "checker_fixtures": [
-                    {"name": "negative", "passed": True},
-                    {"name": "positive", "passed": True},
-                ],
-            }
-        },
-        "vision_validation": {"status": "passed", "passed": True},
-        "task_artifact_summary": {
-            "success_origin": "provider_generated_python",
-            "success_official_equivalent": False,
-        },
-    }
-
-    try:
-        backend.bind_validated_taskgen_candidate(
-            binding,
-            CandidateRequest(
-                candidate_id=proposal["candidate_id"],
-                source_query=query,
-                proposal_bundle=proposal,
-                output_dir=run_dir,
-                seed=11,
-            ),
-            manifest,
-        )
-    except ValueError as exc:
-        assert "acceptance checker review differs" in str(exc)
-    else:
-        raise AssertionError("tampered checker review must be rejected")
 
 
 def test_native_act_runner_returns_one_aligned_method_observation(

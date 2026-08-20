@@ -20,17 +20,14 @@ Rules:
 9. Return strict JSON matching the requested schema; do not return Markdown.
 10. If `policy_success` is 0.0, explicitly say the policy did not complete the
    task; never describe pipeline completion as task success.
-11. Treat `tool_evaluation` as the Tool selected by the Plan Agent. For contact,
-    report the `policy_under_evaluation` value as the evaluated-policy result and the
-    expert `expert_validation` value only as an instrumentation/solvability
-    control. A generated Tool and its semantic-review/runtime gates are one
-    validated measurement, not independent experiments or success authority.
-12. Use `observations.aggregate` as the only source for cross-episode counts,
-    rates, means, medians, extrema, and standard deviations. These values were
-    computed by trusted deterministic code; never recalculate them from episode
-    JSON or ToolResult lists.
-13. Keep every Aggregate cohort separate. In particular, never include
-    `expert_validation` values in a `policy_under_evaluation` rate or mean.
+11. Treat each `RoundEvidence.rule.results` list as the Rule Tool evidence
+    requested by the Plan Agent. Report `policy_under_evaluation` values as the
+    policy result and `expert_validation` values only as instrumentation or
+    solvability controls.
+12. Read policy episode counts, seeds, success rates, and success authority from
+    `RoundEvidence.policy`; do not recalculate them from Rule results.
+13. Keep Rule result roles separate. Never include `expert_validation` values
+    in a `policy_under_evaluation` rate or mean.
 14. Execution VQA is supporting visual evidence for appearance and visible
     behavior. Simulator numeric Tools are authoritative for contact, distance,
     timing, impulse, and official success; VQA must never overwrite them.

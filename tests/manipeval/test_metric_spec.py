@@ -367,6 +367,10 @@ class MetricSpecTests(unittest.TestCase):
             self.assertEqual(
                 result["registration"]["scope"], "generated_artifact_library"
             )
+            registry_index = json.loads(
+                (registry / "index.json").read_text(encoding="utf-8")
+            )
+            self.assertNotIn("semantic_review", registry_index["entries"][0])
             reusable = compatible_run_local_tool_requests(
                 registry,
                 task_name="beat_block_hammer",

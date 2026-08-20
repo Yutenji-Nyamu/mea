@@ -21,6 +21,43 @@ def write_json(path: Path, value):
     )
 
 
+def round_evidence(round_id: str, candidate_id: str, seed: int) -> dict:
+    return {
+        "schema_version": 1,
+        "round_id": round_id,
+        "candidate_id": candidate_id,
+        "pipeline": {"passed": True, "failure_stage": None},
+        "planning_observation": None,
+        "policy": {
+            "success_rate": 1.0,
+            "metric": "official_check_success",
+            "authority": "official_check_success",
+            "official_equivalent": True,
+            "execution_scope": "official_check_success",
+            "seeds": [seed],
+        },
+        "rule": {
+            "requested": False,
+            "status": None,
+            "metric": None,
+            "route": None,
+            "source": None,
+            "results": [],
+        },
+        "vqa": {
+            "required": False,
+            "status": "missing",
+            "evidence_conflict": False,
+            "observation": None,
+        },
+        "outcome_semantics": {
+            "status": "official_only",
+            "evidence_conflict": False,
+        },
+        "scene_change": None,
+    }
+
+
 def make_evaluation(
     repo_root: Path,
     evaluation_id: str,
@@ -73,20 +110,21 @@ def make_evaluation(
     if requested_aspects is not None:
         plan["requested_aspect_ids"] = requested_aspects
     evidence = {
-        "schema_version": 2,
+        "schema_version": 3,
         "evaluation_id": evaluation_id,
-        "user_request": request,
+        "query": request,
         "plan": {
+            "max_rounds": len(templates),
             "executed_rounds": len(templates),
-            "completed_template_ids": templates,
+            "planning_state": f"stopped_after_round_{len(templates)}",
+            "round_budget_remaining": 0,
         },
         "rounds": [
-            {"round_id": f"round_{index}"} for index in range(1, len(templates) + 1)
+            round_evidence(f"round_{index}", template, index)
+            for index, template in enumerate(templates, start=1)
         ],
-        "observations": {
-            "pipeline_passed": True,
-            "execution_vqa_conflict": False,
-        },
+        "total_policy_episodes": len(templates),
+        "artifacts": {},
     }
     write_json(directory / "manifest.json", manifest)
     write_json(directory / "plan/evaluation_plan.json", plan)
@@ -107,6 +145,12 @@ class EvaluationHistoryTests(unittest.TestCase):
             record = build_history_record(root, evaluation)
             self.assertEqual(record["evaluation_id"], "eval_blue")
             self.assertEqual(record["policy"]["name"], "ACT")
+            self.assertTrue(record["outcome"]["pipeline_passed"])
+            self.assertFalse(record["outcome"]["evidence_conflict"])
+            self.assertEqual(
+                record["compatibility"]["evidence_schema_version"], 3
+            )
+            self.assertNotIn("base_commit", record["compatibility"])
             self.assertEqual(
                 record["planning"]["requested_template_ids"],
                 ["object_appearance.color_blue"],
@@ -148,6 +192,96 @@ class EvaluationHistoryTests(unittest.TestCase):
             with self.assertRaises(IncompleteEvaluationError):
                 database.index_evaluation_dir(incomplete)
             self.assertEqual(database.count(), 1)
+
+    def test_legacy_digest_column_is_removed_without_losing_records(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evaluation = make_evaluation(
+                root,
+                "eval_legacy_digest",
+                request="legacy digest migration",
+            )
+            record = build_history_record(root, evaluation)
+            encoded = json.dumps(
+                record,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            database_path = root / "mea/evaluation_runs/history.sqlite3"
+            database_path.parent.mkdir(parents=True, exist_ok=True)
+            with closing(sqlite3.connect(database_path)) as connection, connection:
+                connection.executescript(
+                    """
+                    CREATE TABLE history_meta (
+                        key TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    );
+                    INSERT INTO history_meta(key, value)
+                        VALUES('schema_version', '1');
+                    CREATE TABLE evaluations (
+                        evaluation_id TEXT PRIMARY KEY,
+                        schema_version INTEGER NOT NULL,
+                        completed_at TEXT,
+                        task_name TEXT NOT NULL,
+                        policy_name TEXT NOT NULL,
+                        checkpoint_setting TEXT,
+                        user_query TEXT NOT NULL,
+                        normalized_query TEXT NOT NULL,
+                        record_sha256 TEXT NOT NULL,
+                        record_json TEXT NOT NULL,
+                        indexed_at TEXT NOT NULL
+                    );
+                    """
+                )
+                connection.execute(
+                    """
+                    INSERT INTO evaluations VALUES(
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                    """,
+                    (
+                        record["evaluation_id"],
+                        record["schema_version"],
+                        record.get("completed_at"),
+                        record["task_name"],
+                        record["policy"]["name"],
+                        record["policy"].get("checkpoint_setting"),
+                        record["user_request"],
+                        "legacy normalized query",
+                        "legacy-digest",
+                        encoded,
+                        "2026-07-16T10:06:00+08:00",
+                    ),
+                )
+
+            database = EvaluationHistoryDB(database_path, repo_root=root)
+            with closing(sqlite3.connect(database_path)) as connection:
+                columns = {
+                    row[1]
+                    for row in connection.execute(
+                        "PRAGMA table_info(evaluations)"
+                    )
+                }
+                stored = connection.execute(
+                    "SELECT record_json, indexed_at FROM evaluations"
+                ).fetchone()
+            self.assertNotIn("record_sha256", columns)
+            self.assertEqual(json.loads(stored[0]), record)
+
+            result = database.upsert_record(record)
+            self.assertEqual(
+                result,
+                {
+                    "evaluation_id": "eval_legacy_digest",
+                    "action": "unchanged",
+                },
+            )
+            with closing(sqlite3.connect(database_path)) as connection:
+                indexed_at = connection.execute(
+                    "SELECT indexed_at FROM evaluations"
+                ).fetchone()[0]
+            self.assertEqual(indexed_at, stored[1])
 
     def test_legacy_completed_manifest_requires_final_timestamp_and_artifacts(self):
         with tempfile.TemporaryDirectory() as temporary:

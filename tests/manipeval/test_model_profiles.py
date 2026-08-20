@@ -8,13 +8,13 @@ from mea.providers import (
 
 
 class ModelProfileTests(unittest.TestCase):
-    def test_balanced_uses_terra_for_codegen_and_luna_elsewhere(self):
+    def test_balanced_uses_terra_for_codegen_and_luna_for_live_reasoning(self):
         resolved = resolve_model_profile("balanced")
         self.assertEqual(resolved["taskgen"], "gpt-5.6-terra")
         self.assertEqual(resolved["toolgen"], "gpt-5.6-terra")
         self.assertEqual(resolved["planner"], "gpt-5.6-luna")
         self.assertEqual(resolved["vision"], "gpt-5.6-luna")
-        self.assertEqual(resolved["feedback"], "gpt-5.6-luna")
+        self.assertNotIn("feedback", resolved)
 
     def test_explicit_stage_override_wins(self):
         resolved = resolve_model_profile(

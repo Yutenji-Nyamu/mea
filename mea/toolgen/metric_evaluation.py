@@ -20,7 +20,7 @@ def evaluate_metric_spec(
     if spec["operation"] == "derived_observable":
         raise MetricSpecError(
             "derived_observable has no built-in numeric interpreter; use "
-            "ToolGen semantic-review/runtime validation or a caller-supplied "
+            "ToolGen runtime validation or a caller-supplied "
             "independent oracle"
         )
     if spec["operation"] == "terminal_minimum_distance":

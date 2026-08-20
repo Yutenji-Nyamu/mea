@@ -19,7 +19,7 @@ task/VQA retrieval hint，仍是待迁移的菜单式兼容债务；official inv
 - simulator/backend 发布了 Proposal 所需的 scene、checker、telemetry 或 VQA hook；
 - 生成物通过对应的 simulator、fixture、render/VLM 与 expert gate。
 
-生产入口使用 Plan Agent，不实例化 catalog 或任务专属 legacy planner。首轮计划由
+生产入口只使用 Plan Agent；catalog、global-query 与任务专属 legacy planner 已从源码删除。首轮计划由
 `PlanAgentInitialPlanBuilder` 直接建立；只有 Query 需要对照时才先运行 neutral official
 control。scene、checker、Rule Tool 与 VQA Tool 是相互独立的 typed need，系统只检索
 或生成本轮实际需要的部分。
@@ -62,8 +62,8 @@ Plan Agent 可以提出 catalog 外 concern，但不能越过 backend 的真实�
 | 实验层 | `experiments/paper/` | fixed/adaptive、消融、ranking、人工/VQA 协议；不得反向成为生产入口 |
 
 `mea/capability_adapter.py` 现仅是历史 reader 的兼容 shim；生产检索使用
-`artifact_retrieval_{index,records,schema}.py`，不授予执行许可。旧 planner/dialect 只服务历史
-artifact、兼容和论文消融。新增 task 不应要求任务名分支；只提供 task identity、
+`artifact_retrieval_{index,records,schema}.py`，不授予执行许可。旧 planner 可执行代码已删除；
+冻结 artifact 与论文结果留在 cold 层。新增 task 不应要求任务名分支；只提供 task identity、
 schema 缓存、policy binding 与 simulator/runtime hooks。
 
 ## Backend 与 simulator 现状

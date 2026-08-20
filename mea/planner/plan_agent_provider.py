@@ -235,9 +235,12 @@ PLAN AGENT CONTRACT:
 Apply the contract above to choose exactly one next action. The capability card
 is an execution boundary, not an experiment menu. For action=continue, fill one
 falsifiable sub-aspect and only the independent Task/Tool needs required for
-that experiment; keep both reuse_first fields true. State one concrete bounded
-delta and preserve only conditions backed by an advertised authority. A numeric
-position edit must be one typed controlled_changes object with exactly actor,
+that experiment; keep both reuse_first fields true. A scene-changing experiment
+must state one concrete bounded delta and preserve only conditions backed by an
+advertised authority. An unchanged official baseline retry must set all four
+artifact needs to required=false and controlled_changes=[]; runtime reuses the
+frozen same seed. A numeric position edit must be one typed controlled_changes
+object with exactly actor,
 property="position", axis, signed_delta, unit="m", and
 reference="same_seed_official_reset"; do not encode it only in description. For
 every preserve entry, return exactly {{actor, property, axis, relation}}; use

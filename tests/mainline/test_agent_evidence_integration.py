@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,13 +12,69 @@ from mea.execution_vqa.runtime import (
     run_round_execution_vqa,
 )
 from mea.planner.evidence_policy import (
-    build_evidence_aggregate,
-    build_evidence_packet,
-    validate_evidence_aggregate,
-    validate_evidence_packet,
+    RoundEvidenceError,
+    build_round_evidence,
+    validate_round_evidence,
+)
+from mea.planner.plan_agent_evidence import (
+    build_plan_agent_evidence_record,
+    render_query_answer,
 )
 from mea.toolkit import aggregate_tool_executions
 from mea.feedback.answer_scope import build_answer_scope
+
+
+def completed_round(
+    *,
+    semantics_status: str = "official_only",
+    vqa_conflict: bool = False,
+    metric: str = "official_check_success",
+    authority: str = "official_check_success",
+    official_equivalent: bool = True,
+) -> tuple[dict, dict]:
+    round_plan = {
+        "round_id": "round_1",
+        "candidate_id": "dynamic.tested_candidate",
+        "sub_aspect": "object_position",
+        "task_instruction": "Evaluate the bounded candidate.",
+        "observations": ["execution_vqa"] if vqa_conflict else [],
+        "semantic_need_execution": {
+            "rule_tool": {"requested": False},
+            "vqa_tool": {"requested": vqa_conflict},
+        },
+    }
+    round_summary = {
+        "round_id": "round_1",
+        "pipeline_passed": True,
+        "observations": {
+            "actual_seeds": [7],
+            "policy_success": 1.0,
+            "policy_outcome": {
+                "metric": metric,
+                "authority": authority,
+                "official_equivalent": official_equivalent,
+                "execution_scope": metric,
+            },
+            "outcome_semantics": {
+                "status": semantics_status,
+                "evidence_conflict": semantics_status == "conflict",
+            },
+            "execution_vqa": {
+                "status": "passed" if vqa_conflict else "missing",
+                "evidence_conflict": vqa_conflict,
+                "observation": (
+                    "The visual trace contradicts the numeric result."
+                    if vqa_conflict
+                    else None
+                ),
+            },
+        },
+    }
+    round_summary["observations"]["round_evidence"] = build_round_evidence(
+        round_plan,
+        round_summary,
+    )
+    return round_plan, round_summary
 
 
 class AgentEvidenceIntegrationTests(unittest.TestCase):
@@ -45,183 +102,89 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             )
         )
 
-    def test_taskgen_failure_does_not_count_requested_act_episode_as_evidence(self):
+    def test_bundle_reuses_the_single_validated_round_protocol(self):
+        round_plan, round_summary = completed_round()
+        # The old round-summary envelope may still contain execution-local
+        # fields, but the final bundle must not reconstruct facts from it.
+        round_summary["observations"]["policy_success"] = 0.0
+        round_summary["observations"]["execution_vqa"][
+            "evidence_conflict"
+        ] = True
         with tempfile.TemporaryDirectory() as temporary:
-            repo_root = Path(temporary)
-            evaluation_id = "eval_taskgen_failed_before_act"
-            child_dir = repo_root / "mea/generated_tasks/failed_round"
-            child_dir.mkdir(parents=True)
-            round_plan = {
-                "round_id": "round_1",
-                "template_id": "performance.control",
-                "sub_aspect": "performance.control",
-                "task_instruction": "Run the control.",
-                "route": "official",
-                "execution": {
-                    "backend": "act",
-                    "seeds": [17],
-                    "num_episodes": 1,
-                },
-            }
-            round_summary = {
-                "round_id": "round_1",
-                "pipeline_passed": False,
-                "observations": {
-                    "execution_backend": "ACT",
-                    "requested_seeds": [17],
-                    "actual_seeds": [],
-                    "scene_alignment": False,
-                    "observed_color": None,
-                    "expert_solvable": None,
-                    "act_pipeline_status": False,
-                    "policy_success": None,
-                    "position_samples": [],
-                    "position_metrics": {},
-                    "aggregate": None,
-                    "execution_vqa": {
-                        "status": "failed",
-                        "artifacts": {},
-                    },
-                },
-            }
             evidence = build_evidence_bundle(
-                repo_root,
-                evaluation_id,
-                "Does the policy pass the control?",
+                Path(temporary),
+                "eval_single_protocol",
+                "Where is the bounded weakness?",
                 {
                     "max_rounds": 1,
                     "planning_state": "stopped_after_round_1",
-                    "round_decisions": [],
-                    "requested_template_ids": ["performance.control"],
-                    "requested_aspect_ids": ["performance.control"],
                 },
                 [
                     {
                         "round_plan": round_plan,
-                        "child_manifest": {"run_id": "failed_round"},
-                        "child_dir": child_dir,
                         "round_summary": round_summary,
-                        "tool_evaluation": {"artifacts": {}},
+                    }
+                ],
+                evaluation_aggregate={"large": "must not be transported"},
+            )
+
+        self.assertEqual(
+            set(evidence),
+            {
+                "schema_version",
+                "evaluation_id",
+                "query",
+                "plan",
+                "rounds",
+                "total_policy_episodes",
+                "artifacts",
+            },
+        )
+        self.assertEqual(evidence["schema_version"], 3)
+        self.assertEqual(
+            evidence["rounds"],
+            [round_summary["observations"]["round_evidence"]],
+        )
+        self.assertEqual(evidence["rounds"][0]["policy"]["success_rate"], 1.0)
+        self.assertFalse(evidence["rounds"][0]["vqa"]["evidence_conflict"])
+        self.assertEqual(evidence["total_policy_episodes"], 1)
+        self.assertNotIn("observations", evidence)
+        self.assertNotIn("history_retrieval", evidence)
+        self.assertNotIn("global_query_route", evidence)
+        self.assertEqual(
+            set(evidence["artifacts"]),
+            {
+                "evaluation_plan",
+                "summary",
+                "aggregate",
+                "round_evidence",
+            },
+        )
+        scope = build_answer_scope(evidence)
+        self.assertEqual(scope["sample_count"], 1)
+        self.assertEqual(scope["seeds"], [7])
+        self.assertEqual(scope["termination"], "budget_exhausted")
+
+    def test_bundle_rejects_missing_round_evidence(self):
+        round_plan, round_summary = completed_round()
+        round_summary["observations"].pop("round_evidence")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "observations.round_evidence",
+        ):
+            build_evidence_bundle(
+                Path("."),
+                "eval_missing_round_evidence",
+                "Where is the bounded weakness?",
+                {"max_rounds": 1},
+                [
+                    {
+                        "round_plan": round_plan,
+                        "round_summary": round_summary,
                     }
                 ],
             )
-
-            observed_round = evidence["rounds"][0]
-            self.assertEqual(observed_round["requested_seeds"], [17])
-            self.assertEqual(observed_round["requested_num_episodes"], 1)
-            self.assertEqual(observed_round["actual_seeds"], [])
-            self.assertEqual(observed_round["seeds"], [])
-            self.assertEqual(observed_round["num_episodes"], 0)
-            self.assertEqual(evidence["requested_total_episodes"], 1)
-            self.assertEqual(evidence["total_episodes"], 0)
-
-            scope = build_answer_scope(evidence)
-            self.assertEqual(scope["sample_count"], 0)
-            self.assertEqual(scope["seeds"], [])
-            self.assertEqual(scope["termination"], "pipeline_invalid")
-
-    def test_candidate_rejection_is_planning_evidence_not_pipeline_failure(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            repo_root = Path(temporary)
-            evaluation_id = "eval_replan_after_candidate_rejection"
-            run_specs = [
-                (
-                    "round_1",
-                    "official",
-                    [17],
-                    True,
-                    None,
-                ),
-                (
-                    "round_2",
-                    "generic_provider_scene_checker_codegen",
-                    [],
-                    False,
-                    {
-                        "schema_version": 1,
-                        "kind": "candidate_unexecutable",
-                        "candidate_id": "dynamic.bad_materialization",
-                        "diagnosis": "target_pose cannot be None",
-                        "policy_sample_count": 0,
-                        "policy_rollouts_started": 0,
-                    },
-                ),
-            ]
-            round_runs = []
-            for round_id, route, actual_seeds, passed, planning in run_specs:
-                child_dir = repo_root / "mea/generated_tasks" / round_id
-                child_dir.mkdir(parents=True)
-                observations = {
-                    "execution_backend": "SmolVLA",
-                    "requested_seeds": [17],
-                    "actual_seeds": actual_seeds,
-                    "scene_alignment": passed,
-                    "observed_color": None,
-                    "expert_solvable": None,
-                    "act_pipeline_status": passed if actual_seeds else None,
-                    "policy_success": 1.0 if actual_seeds else None,
-                    "position_samples": [],
-                    "position_metrics": {},
-                    "aggregate": None,
-                    "execution_vqa": {"status": "skipped", "artifacts": {}},
-                }
-                if planning is not None:
-                    observations["planning_observation"] = planning
-                round_runs.append(
-                    {
-                        "round_plan": {
-                            "round_id": round_id,
-                            "template_id": (
-                                "task_execution.official_baseline"
-                                if round_id == "round_1"
-                                else None
-                            ),
-                            "candidate_id": (
-                                planning["candidate_id"]
-                                if planning is not None
-                                else None
-                            ),
-                            "sub_aspect": round_id,
-                            "task_instruction": "Evaluate one bounded round.",
-                            "route": route,
-                            "execution": {
-                                "backend": "act",
-                                "seeds": [17],
-                                "num_episodes": 1,
-                            },
-                        },
-                        "child_manifest": {"run_id": round_id},
-                        "child_dir": child_dir,
-                        "round_summary": {
-                            "round_id": round_id,
-                            "pipeline_passed": passed,
-                            "observations": observations,
-                        },
-                        "tool_evaluation": {"artifacts": {}},
-                    }
-                )
-
-            evidence = build_evidence_bundle(
-                repo_root,
-                evaluation_id,
-                "Where is the first executable weakness?",
-                {
-                    "max_rounds": 2,
-                    "planning_state": "stopped_after_round_2_by_hard_cap",
-                    "round_decisions": [],
-                    "requested_template_ids": [],
-                    "requested_aspect_ids": [],
-                },
-                round_runs,
-            )
-
-            self.assertTrue(evidence["observations"]["pipeline_passed"])
-            self.assertEqual(evidence["observations"]["policy_round_count"], 1)
-            self.assertEqual(evidence["observations"]["planning_round_count"], 1)
-            self.assertEqual(evidence["total_episodes"], 1)
-            scope = build_answer_scope(evidence)
-            self.assertEqual(scope["sample_count"], 1)
-            self.assertEqual(scope["termination"], "budget_exhausted")
 
     def test_compact_aggregate_preserves_group_statistics(self):
         aggregate = aggregate_tool_executions(
@@ -407,7 +370,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             self.assertEqual(result["status"], "abstained")
             self.assertIn("insufficient evidence", result["reason"])
 
-    def test_required_vqa_abstention_is_insufficient_planning_evidence(self):
+    def test_round_evidence_keeps_required_vqa_abstention_as_a_fact(self):
         round_plan = {
             "round_id": "round_1",
             "template_id": "dynamic.visual_check",
@@ -423,41 +386,127 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             "round_id": "round_1",
             "pipeline_passed": True,
             "observations": {
-                "aggregate": {
-                    "status": "passed",
-                    "input_issues": [],
-                    "metrics": [
-                        {
-                            "metric": "official_check_success",
-                            "cohorts": [
-                                {
-                                    "role": "policy_under_evaluation",
-                                    "summary": {
-                                        "quality": {
-                                            "valid": 1,
-                                            "missing": 0,
-                                            "invalid": 0,
-                                        }
-                                    },
-                                }
-                            ],
-                        }
-                    ],
+                "actual_seeds": [7],
+                "policy_success": 1.0,
+                "policy_outcome": {
+                    "metric": "official_check_success",
+                    "authority": "official_check_success",
+                    "official_equivalent": True,
+                    "execution_scope": "official_equivalent",
+                },
+                "outcome_semantics": {
+                    "status": "official_only",
+                    "evidence_conflict": False,
                 },
                 "execution_vqa": {
                     "status": "abstained",
                     "evidence_conflict": False,
+                    "observation": "The video does not show the target.",
                 },
             },
         }
 
-        evidence = build_evidence_aggregate(round_plan, summary)
+        evidence = build_round_evidence(round_plan, summary)
 
         self.assertEqual(evidence["vqa"]["status"], "abstained")
-        self.assertFalse(evidence["coverage"]["vqa_observed"])
-        self.assertEqual(evidence["evidence_strength"], "uncertain")
-        self.assertEqual(
-            evidence["reason_codes"], ["execution_vqa_abstained"]
+        self.assertTrue(evidence["vqa"]["required"])
+        self.assertEqual(evidence["policy"]["success_rate"], 1.0)
+        self.assertNotIn("evidence_strength", evidence)
+        self.assertNotIn("coverage", evidence)
+
+    def test_round_evidence_rejects_broken_policy_identity_and_rate_lineage(self):
+        _, summary = completed_round()
+        evidence = summary["observations"]["round_evidence"]
+        broken_cases = (
+            (
+                "actual seed",
+                {
+                    **deepcopy(evidence),
+                    "policy": {**evidence["policy"], "seeds": []},
+                },
+            ),
+            (
+                "official authority",
+                {
+                    **deepcopy(evidence),
+                    "policy": {
+                        **evidence["policy"],
+                        "authority": "llm_generated_python_ast_validated",
+                    },
+                },
+            ),
+            (
+                "unsupported outcome_semantics.status",
+                {
+                    **deepcopy(evidence),
+                    "outcome_semantics": {
+                        **evidence["outcome_semantics"],
+                        "status": "surprising",
+                    },
+                },
+            ),
+        )
+
+        for error, broken in broken_cases:
+            with self.subTest(error=error), self.assertRaisesRegex(
+                RoundEvidenceError,
+                error,
+            ):
+                validate_round_evidence(broken)
+
+    def test_non_comparable_completed_rate_remains_candidate_unknown(self):
+        round_plan, summary = completed_round(
+            semantics_status="non_comparable"
+        )
+
+        record = build_plan_agent_evidence_record(round_plan, summary)
+
+        self.assertEqual(record["candidate_evidence"]["outcome"], "unknown")
+        self.assertEqual(record["open_query_evidence"]["outcome"], "ambiguous")
+
+    def test_bound_generated_extension_remains_experimentally_decidable(self):
+        round_plan, summary = completed_round(
+            semantics_status="expected_semantic_extension",
+            metric="generated_check_success",
+            authority="llm_generated_python_ast_validated",
+            official_equivalent=False,
+        )
+
+        record = build_plan_agent_evidence_record(round_plan, summary)
+
+        self.assertEqual(record["candidate_evidence"]["outcome"], "pass")
+        self.assertTrue(
+            any(
+                "not an official RoboTwin success result" in item
+                for item in record["open_query_evidence"]["limitations"]
+            )
+        )
+
+    def test_vqa_conflict_reaches_candidate_and_query_answer(self):
+        round_plan, summary = completed_round(vqa_conflict=True)
+        record = build_plan_agent_evidence_record(round_plan, summary)
+
+        answer = render_query_answer(
+            "Does this bounded candidate expose a weakness?",
+            {
+                "evidence_sufficient": False,
+                "stop_reason": "continue",
+                "claim_verdict": "inconclusive",
+                "observed_candidate_ids": [record["candidate_id"]],
+                "limitations": [],
+            },
+            [record],
+            baseline_valid=True,
+        )
+
+        self.assertEqual(record["candidate_evidence"]["outcome"], "conflict")
+        self.assertIn(
+            "VQA evidence_conflict=True",
+            record["open_query_evidence"]["evidence_summary"],
+        )
+        self.assertTrue(answer["evidence_conflict"])
+        self.assertTrue(
+            any("VQA evidence" in item for item in answer["limitations"])
         )
 
     def test_completed_act_without_video_is_failed_not_skipped(self):
@@ -507,7 +556,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             )
             self.assertIn("missing video.mp4", saved["reason"])
 
-    def test_typed_pre_policy_observation_is_uncertain_planning_evidence(self):
+    def test_typed_pre_policy_observation_is_raw_n_zero_round_evidence(self):
         round_plan = {
             "round_id": "round_2",
             "candidate_id": "generated_candidate",
@@ -522,6 +571,7 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             "pipeline_passed": False,
             "failure_stage": "taskgen_expert_gate",
             "observations": {
+                "actual_seeds": [],
                 "planning_observation": {
                     "kind": "expert_oracle_unavailable",
                     "reason_code": (
@@ -530,6 +580,13 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
                     "policy_rollouts_started": 0,
                     "policy_sample_count": 0,
                 },
+                "policy_success": None,
+                "policy_outcome": {
+                    "metric": None,
+                    "authority": None,
+                    "official_equivalent": None,
+                    "execution_scope": "not_executed",
+                },
                 "outcome_semantics": {
                     "status": "non_comparable",
                     "evidence_conflict": False,
@@ -537,42 +594,16 @@ class AgentEvidenceIntegrationTests(unittest.TestCase):
             },
         }
 
-        evidence = build_evidence_aggregate(round_plan, summary)
+        evidence = build_round_evidence(round_plan, summary)
 
-        self.assertEqual(evidence["schema_version"], 2)
+        self.assertEqual(evidence["schema_version"], 1)
         self.assertFalse(evidence["pipeline"]["passed"])
-        self.assertTrue(evidence["valid_for_planning"])
-        self.assertEqual(evidence["evidence_strength"], "uncertain")
         self.assertEqual(
-            evidence["reason_codes"],
-            ["taskgen_expert_gate_official_baseline_unsolvable"],
+            evidence["planning_observation"]["reason_code"],
+            "taskgen_expert_gate_official_baseline_unsolvable",
         )
-
-        summary["observations"]["evidence_aggregate"] = evidence
-        packet = build_evidence_packet(
-            {"rounds": [round_plan], "max_rounds": 2}, [summary]
-        )
-        self.assertFalse(packet["pipeline"]["passed"])
-        self.assertTrue(packet["valid_for_planning"])
-
-        # Old v1 artifacts encoded the same N=0 observation by upgrading
-        # pipeline.passed.  The v2 reader remains compatible with that shape.
-        legacy_aggregate = {
-            **evidence,
-            "schema_version": 1,
-            "pipeline": {**evidence["pipeline"], "passed": True},
-        }
-        legacy_aggregate.pop("valid_for_planning")
-        self.assertEqual(
-            validate_evidence_aggregate(legacy_aggregate), legacy_aggregate
-        )
-        legacy_packet = {
-            **packet,
-            "schema_version": 1,
-            "pipeline": {**packet["pipeline"], "passed": True},
-        }
-        legacy_packet.pop("valid_for_planning")
-        self.assertEqual(validate_evidence_packet(legacy_packet), legacy_packet)
+        self.assertEqual(validate_round_evidence(evidence), evidence)
+        self.assertNotIn("reason_codes", evidence)
 
     def test_official_act_without_act_candidate_is_failed(self):
         with tempfile.TemporaryDirectory() as temporary:

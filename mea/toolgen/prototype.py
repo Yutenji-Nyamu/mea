@@ -247,18 +247,6 @@ def _write_json(path: Path, value: Any) -> None:
     )
 
 
-def _git_head(repo_root: Path) -> str | None:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo_root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
 def _source_for_node(source: str, node: ast.AST) -> str:
     lines = source.splitlines()
     return "\n".join(lines[node.lineno - 1 : node.end_lineno])
@@ -959,7 +947,6 @@ class ToolGenPrototype:
             "schema_version": 2,
             "status": "generating",
             "created_at": datetime.now().astimezone().isoformat(),
-            "base_commit": _git_head(self.repo_root),
             "model_requested": self.model,
             "target_metric": target_metric,
             "reference_tool": reference_tool,

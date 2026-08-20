@@ -199,9 +199,6 @@ def find_run_local_registration(
             "target_metric": tool_spec.get("metric"),
             "tool_contract": tool_contract(tool_spec),
             "required_signals": list(tool_spec.get("required_signals", [])),
-            "validation": {
-                "semantic_review": deepcopy(entry.get("semantic_review")),
-            },
         }
         return {
             "registration": registration,
@@ -260,7 +257,6 @@ def register_run_local_tool(
     episode_dirs: Iterable[str | Path],
     source_path: str | Path,
     tool_id: str | None = None,
-    semantic_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = Path(registry_dir).expanduser().resolve()
     source = Path(source_path).expanduser().resolve()
@@ -291,7 +287,6 @@ def register_run_local_tool(
             "task_name": tool_spec["task_name"],
             "metric": tool_spec["metric"],
             "tool_id": tool_id or tool_spec.get("metric"),
-            "semantic_review": deepcopy(semantic_review),
             "artifact": str(stored_source.relative_to(root)),
             "tool_spec_artifact": str(stored_spec.relative_to(root)),
         }

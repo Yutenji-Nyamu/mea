@@ -175,7 +175,8 @@ class OpenToolRequestTest(unittest.TestCase):
         self.assertEqual(spec["schema_version"], 2)
         self.assertEqual(spec["operation"], "derived_observable")
         self.assertEqual(spec["required_signals"], ["hammer_position"])
-        self.assertIn("development-agent semantic review", agent.last_prompt)
+        self.assertIn("directly implement this description", agent.last_prompt)
+        self.assertNotIn("semantic review", agent.last_prompt)
         self.assertEqual(
             route_tool_request(bundle["tool_request"])["route_decision"][
                 "resolved_route"

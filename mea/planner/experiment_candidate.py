@@ -12,8 +12,6 @@ representation.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import math
 import re
 from copy import deepcopy
@@ -75,7 +73,7 @@ _LEGACY_NEED_KIND = {
     "tool_need": "measure",
 }
 _CANDIDATE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
-_SLUG_SEPARATOR = re.compile(r"[^a-z0-9]+")
+_SLUG_SEPARATOR = re.compile(r"[^a-z0-9_]+")
 
 
 def _text(value: Any, field: str) -> str:
@@ -162,7 +160,7 @@ def validate_scene_deltas(value: Any) -> list[dict[str, Any]]:
 
 
 def _slug(value: str, *, field: str) -> str:
-    slug = _SLUG_SEPARATOR.sub(".", _text(value, field).casefold()).strip(".")
+    slug = _SLUG_SEPARATOR.sub(".", _text(value, field).casefold()).strip("._")
     if not slug:
         raise ExperimentCandidateError(f"{field} cannot produce a candidate id")
     return slug
@@ -313,18 +311,6 @@ def validate_experiment_candidate(value: Mapping[str, Any]) -> dict[str, Any]:
             vqa_tool_need = None
     candidate["rule_tool_need"] = rule_tool_need
     candidate["vqa_tool_need"] = vqa_tool_need
-    if not any(
-        need is not None
-        for need in (
-            candidate["scene_need"],
-            candidate["checker_need"],
-            rule_tool_need,
-            vqa_tool_need,
-        )
-    ):
-        raise ExperimentCandidateError(
-            "ExperimentCandidate must request at least one typed need"
-        )
 
     # This alias is intentionally lossy when both Tool types are requested.
     # Production runtime code must consume the two canonical fields.
@@ -377,7 +363,13 @@ def build_experiment_candidate(
     candidate_id: str | None = None,
     evaluation_intent: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build one catalog-independent runtime experiment candidate."""
+    """Build one catalog-independent runtime experiment candidate.
+
+    The default id names the task and semantic concern; it is not a content
+    fingerprint.  A caller that may schedule more than one Proposal for the
+    same concern must provide an explicit readable scoped id.  The Plan Agent
+    session then rejects accidental reuse of that id for a different payload.
+    """
 
     task = _text(base_task, "base_task")
     concern = _text(semantic_concern, "semantic_concern")
@@ -412,22 +404,6 @@ def build_experiment_candidate(
             raise ExperimentCandidateError(
                 f"invalid semantic coverage contract: {exc}"
             ) from exc
-    experiment_digest = hashlib.sha256(
-        json.dumps(
-            {
-                "base_task": task,
-                "semantic_concern": concern,
-                "scene_need": scene,
-                "checker_need": checker,
-                "rule_tool_need": rule_tool,
-                "vqa_tool_need": vqa_tool,
-                "evaluation_intent": normalized_intent,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()[:12]
     resolved_id = (
         _candidate_id(candidate_id)
         if candidate_id is not None
@@ -435,8 +411,6 @@ def build_experiment_candidate(
         + _slug(task, field="base_task")
         + "."
         + _slug(concern, field="semantic_concern")
-        + "."
-        + experiment_digest
     )
     value: dict[str, Any] = {
         "schema_version": 2,

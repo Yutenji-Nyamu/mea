@@ -104,6 +104,7 @@ def build_dynamic_experiment_candidate(
     proposal: Mapping[str, Any],
     evaluation_intent: Mapping[str, Any] | None = None,
     official_success_reuse: bool = False,
+    candidate_id: str | None = None,
 ) -> dict[str, Any]:
     """Bind one semantic proposal without rewriting its first-candidate intent.
 
@@ -214,6 +215,7 @@ def build_dynamic_experiment_candidate(
             if vqa_tool_need["required"]
             else None
         ),
+        candidate_id=candidate_id,
         evaluation_intent=intent,
     )
 

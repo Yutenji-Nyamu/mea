@@ -123,10 +123,19 @@ def _text_list(value: Any, field: str, *, allow_empty: bool = True) -> list[str]
     return result
 
 
-def _controlled_changes(value: Any, field: str) -> list[str | dict[str, Any]]:
+def _controlled_changes(
+    value: Any,
+    field: str,
+    *,
+    allow_empty: bool = False,
+) -> list[str | dict[str, Any]]:
     """Accept frozen prose readers but make new numeric scene edits typed."""
 
-    if not isinstance(value, list) or not value:
+    if not isinstance(value, list):
+        raise ClaimFirstPlanError(f"{field} must be a list")
+    if not value:
+        if allow_empty:
+            return []
         raise ClaimFirstPlanError(f"{field} must be a non-empty list")
     if all(isinstance(item, str) for item in value):
         return _text_list(value, field, allow_empty=False)
@@ -277,14 +286,13 @@ def validate_open_query_capabilities(value: Mapping[str, Any]) -> dict[str, Any]
 
 def project_open_query_capabilities(
     planning_context: Mapping[str, Any],
-    *,
-    allowed_aspect_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """Project one runtime into paper-level backend primitives.
 
     The caller is expected to validate/build ``planning_context`` through the
-    repository-owned context adapter first.  Templates remain a retrieval
-    index downstream; they do not define what the Plan Agent may propose.
+    repository-owned context adapter first. Artifact retrieval remains
+    downstream of the Proposal; it does not define what the Plan Agent may
+    propose.
     """
 
     if not isinstance(planning_context, Mapping):
@@ -295,16 +303,6 @@ def project_open_query_capabilities(
         raise ClaimFirstPlanError("PlanningContext.policy_card must be an object")
     if not isinstance(simulator, Mapping):
         raise ClaimFirstPlanError("PlanningContext.simulator_card must be an object")
-    if allowed_aspect_ids is not None:
-        # Kept only so historical callers do not break.  The production
-        # capability boundary is deliberately independent of routed aspects.
-        _text_list(list(allowed_aspect_ids), "allowed_aspect_ids")
-
-    projected_simulator = {
-        key: deepcopy(nested)
-        for key, nested in simulator.items()
-        if key != "available_aspect_ids"
-    }
     success_contract = simulator.get("success_contract")
     telemetry_available = bool(
         simulator.get("tracked_actors")
@@ -318,7 +316,7 @@ def project_open_query_capabilities(
         {
             "schema_version": 2,
             "policy_card": deepcopy(dict(policy)),
-            "simulator_card": projected_simulator,
+            "simulator_card": deepcopy(dict(simulator)),
             "generation_card": {
                 "backend_primitives": {
                     "scene": True,
@@ -581,14 +579,21 @@ def validate_open_query_plan_proposal(
             f"{sorted(_PERTURBATION_KEYS)}"
         )
     result["sub_aspect"] = sub_aspect
+    controlled_changes = _controlled_changes(
+        perturbation.get("controlled_changes"),
+        "requested_perturbation.controlled_changes",
+        allow_empty=not result["scene_need"]["required"],
+    )
+    if not result["scene_need"]["required"] and controlled_changes:
+        raise ClaimFirstPlanError(
+            "requested_perturbation.controlled_changes must be empty when "
+            "scene_need is not required"
+        )
     result["requested_perturbation"] = {
         "description": _text(
             perturbation.get("description"), "requested_perturbation.description"
         ),
-        "controlled_changes": _controlled_changes(
-            perturbation.get("controlled_changes"),
-            "requested_perturbation.controlled_changes",
-        ),
+        "controlled_changes": controlled_changes,
         "preserve": _preservation_facts(
             perturbation.get("preserve"),
             "requested_perturbation.preserve",

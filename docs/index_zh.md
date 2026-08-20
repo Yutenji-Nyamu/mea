@@ -5,7 +5,7 @@
 
 - [架构与干净数据流](architecture_and_dataflow_zh.md)：`--auto-route` 开放 Query 的
   Plan Agent、Query interpretation、Proposal、Plan Agent session 主链及每轮证据结构；
-  旧 catalog/fixed 入口仅作兼容与论文消融。
+  旧 catalog/fixed 可执行入口已删除，历史结果保留在 cold paper artifacts。
 - [运行指南](running_guide_zh.md)：plan-only、live rollout 与证据查看。
 - [LIBERO / SmolVLA 复现与 MEA 接入](libero_smolvla_reproduction_zh.md)：服务器安装、镜像/限流问题、seed/RNG parity、official/custom 两回合方法链及复现协议；这是长期保留、按需读取的 cold reference。
 - [RoboTwin / SmolVLA 复现](robotwin_smolvla_reproduction_zh.md)：checkpoint 固定与校验、服务器网络、Python/NumPy 隔离、双进程 IPC、policy adapter 协议和完整回滚边界；这是长期保留、按需读取的 cold reference。

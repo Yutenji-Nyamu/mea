@@ -4,7 +4,6 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from mea.planner import BoundTaskPlanSession, build_act_catalog
 from mea.planner.plan_agent_schema import project_open_query_capabilities
 from mea.planner.context import (
     PlanningContextError,
@@ -45,23 +44,26 @@ def _task_schema(task_name: str) -> dict:
     }
 
 
-def _ready_catalog(root: Path) -> dict:
-    for task_name in ("beat_block_hammer", "click_bell"):
-        schema = root / "mea/toolkit/schemas" / f"{task_name}.json"
-        schema.parent.mkdir(parents=True, exist_ok=True)
-        schema.write_text(
-            json.dumps(_task_schema(task_name)), encoding="utf-8"
-        )
-        checkpoint = (
-            root
-            / "policy/ACT/act_ckpt"
-            / f"act-{task_name}"
-            / "demo_clean-50"
-        )
-        checkpoint.mkdir(parents=True)
-        (checkpoint / "dataset_stats.pkl").write_bytes(b"stats")
-        (checkpoint / "policy_last.ckpt").write_bytes(b"weights")
-    return build_act_catalog(root)
+def _runtime_target(root: Path, task_name: str) -> dict:
+    schema = root / "mea/toolkit/schemas" / f"{task_name}.json"
+    schema.parent.mkdir(parents=True, exist_ok=True)
+    schema.write_text(json.dumps(_task_schema(task_name)), encoding="utf-8")
+    return {
+        "schema_version": 3,
+        "binding_mode": "single_task_single_checkpoint_open_world",
+        "policy_task_binding": build_policy_task_binding(
+            task_name=task_name,
+            task_family="manipulation",
+            policy={"name": "ACT", "language_conditioned": False},
+            checkpoint={
+                "checkpoint_id": f"act-{task_name}/demo_clean-50",
+                "checkpoint_setting": "demo_clean",
+                "expert_data_num": 50,
+                "ready": True,
+            },
+        ),
+        "max_rounds": 2,
+    }
 
 
 class PlanningContextTests(unittest.TestCase):
@@ -87,32 +89,14 @@ class PlanningContextTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            target = {
-                "schema_version": 3,
-                "binding_mode": "single_task_single_checkpoint_open_world",
-                "policy_task_binding": build_policy_task_binding(
-                    task_name=task_name,
-                    task_family="manipulation",
-                    policy={
-                        "name": "ACT",
-                        "language_conditioned": False,
-                    },
-                    checkpoint={
-                        "checkpoint_id": (
-                            f"act-{task_name}/demo_clean-50"
-                        ),
-                        "checkpoint_setting": "demo_clean",
-                        "expert_data_num": 50,
-                        "ready": True,
-                    },
-                ),
-                "max_rounds": 2,
-            }
+            target = _runtime_target(root, task_name)
 
             context = build_planning_context(root, target)
             projected = project_open_query_capabilities(context)
 
-            self.assertEqual(context["adapter_view"]["templates"], [])
+            self.assertEqual(
+                set(context), {"schema_version", "policy_card", "simulator_card"}
+            )
             self.assertEqual(
                 projected["generation_card"]["backend_primitives"],
                 {
@@ -137,13 +121,10 @@ class PlanningContextTests(unittest.TestCase):
     def test_cards_are_schema_driven_and_cross_task(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            catalog = _ready_catalog(root)
             contexts = {}
             for task_name in ("click_bell", "beat_block_hammer"):
-                session = BoundTaskPlanSession.from_catalog(
-                    catalog, task_name, max_rounds=1
-                )
-                context = session.planning_context(root)
+                target = _runtime_target(root, task_name)
+                context = build_planning_context(root, target)
                 contexts[task_name] = context
                 self.assertEqual(context["schema_version"], 1)
                 self.assertEqual(
@@ -153,47 +134,40 @@ class PlanningContextTests(unittest.TestCase):
                 self.assertEqual(
                     context["simulator_card"]["action_dimension"], 14
                 )
-                self.assertEqual(
-                    context["adapter_view"]["task_name"], task_name
-                )
-                self.assertTrue(context["adapter_view"]["templates"])
+                self.assertNotIn("adapter_view", context)
+                self.assertNotIn("available_aspect_ids", context["simulator_card"])
                 self.assertNotIn(str(root), json.dumps(context))
             self.assertNotEqual(
-                contexts["click_bell"]["adapter_view"]["templates"],
-                contexts["beat_block_hammer"]["adapter_view"]["templates"],
+                contexts["click_bell"]["policy_card"]["checkpoint_id"],
+                contexts["beat_block_hammer"]["policy_card"]["checkpoint_id"],
             )
 
     def test_context_rejects_source_drift_and_extra_fields(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            session = BoundTaskPlanSession.from_catalog(
-                _ready_catalog(root), "click_bell", max_rounds=1
-            )
-            context = build_planning_context(root, session.target)
+            target = _runtime_target(root, "click_bell")
+            context = build_planning_context(root, target)
             changed = deepcopy(context)
             changed["policy_card"]["policy_name"] = "another_policy"
             with self.assertRaisesRegex(
                 PlanningContextError, "differs from trusted sources"
             ):
                 validate_planning_context(
-                    changed, repo_root=root, target=session.target
+                    changed, repo_root=root, target=target
                 )
             changed = deepcopy(context)
             changed["simulator_card"]["local_path"] = str(root)
             with self.assertRaisesRegex(PlanningContextError, "fields"):
                 validate_planning_context(
-                    changed, repo_root=root, target=session.target
+                    changed, repo_root=root, target=target
                 )
             changed = deepcopy(context)
-            changed["adapter_view"]["templates"] = []
-            with self.assertRaisesRegex(
-                PlanningContextError,
-                "legacy adapter_view.templates must be non-empty",
-            ):
+            changed["adapter_view"] = {"templates": []}
+            with self.assertRaisesRegex(PlanningContextError, "fields"):
                 validate_planning_context(
                     changed,
                     repo_root=root,
-                    target=session.target,
+                    target=target,
                 )
 
 

@@ -59,7 +59,6 @@ def finalize_manifest_and_dispatch(
             "taskgen": context.models["taskgen"],
             "toolgen": context.models["toolgen"],
             "vision": context.models["vision"],
-            "answer": context.models["feedback"],
         },
         history_database=(
             str(context.history_path.relative_to(context.repo_root))

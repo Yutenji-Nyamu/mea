@@ -16,24 +16,14 @@ _SCOPE_KEYS = {
     "seeds",
     "tested_candidate_ids",
     "untested_candidate_ids",
-    "unsupported_capabilities",
     "evidence_conflict",
     "termination",
     "claim_verdict",
     "required_limitations",
 }
-_INTENT_SCOPE_KEYS = {
-    "original_intent_ids",
-    "covered_original_intent_fields",
-    "uncovered_original_intent_fields",
-}
-_LEGACY_SCOPE_KEYS = _SCOPE_KEYS | _INTENT_SCOPE_KEYS
 _LIMITATION_KEYS = {"code", "text"}
 _TERMINATIONS = {
     "agent_stop",
-    "agent_inconclusive_stop",
-    # Historical reader compatibility for Batch37 and earlier artifacts.
-    "agent_saturation_inconclusive",
     "budget_exhausted",
     "continue",
     "control_not_passed",
@@ -48,18 +38,14 @@ def _dedupe(values: list[Any]) -> list[Any]:
 
 def _collect_seeds(evidence: Mapping[str, Any]) -> list[int]:
     raw: list[Any] = []
-    if "seed" in evidence:
-        raw.append(evidence.get("seed"))
-    if isinstance(evidence.get("seeds"), list):
-        raw.extend(evidence["seeds"])
     for round_evidence in evidence.get("rounds", []):
         if not isinstance(round_evidence, Mapping):
             continue
-        if isinstance(round_evidence.get("seeds"), list):
-            raw.extend(round_evidence["seeds"])
-        for episode in round_evidence.get("episodes", []):
-            if isinstance(episode, Mapping):
-                raw.append(episode.get("seed"))
+        policy = round_evidence.get("policy")
+        if isinstance(policy, Mapping) and isinstance(
+            policy.get("seeds"), list
+        ):
+            raw.extend(policy["seeds"])
     seeds: list[int] = []
     for value in raw:
         if isinstance(value, bool) or not isinstance(value, int):
@@ -70,45 +56,13 @@ def _collect_seeds(evidence: Mapping[str, Any]) -> list[int]:
 
 
 def _sample_count(evidence: Mapping[str, Any], seeds: list[int]) -> int | None:
-    aggregate = None
-    observations = evidence.get("observations")
-    if isinstance(observations, Mapping):
-        aggregate = observations.get("aggregate")
-    if not isinstance(aggregate, Mapping):
-        aggregate = evidence.get("aggregate")
-    # Prefer execution metadata because Aggregate may include expert and policy
-    # cohorts in the same unique-episode count.
-    for value in (evidence.get("total_episodes"),):
-        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-            return value
-    round_counts = [
-        item.get("num_episodes")
-        for item in evidence.get("rounds", [])
-        if isinstance(item, Mapping)
-    ]
-    if round_counts and all(
-        isinstance(item, int) and not isinstance(item, bool) and item >= 0
-        for item in round_counts
-    ):
-        return sum(round_counts)
-    value = evidence.get("num_episodes")
+    value = evidence.get("total_policy_episodes")
     if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
         return value
-    value = (aggregate or {}).get("unique_episode_count")
-    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-        return value
-    return len(seeds) if seeds else None
+    return len(seeds) if isinstance(evidence.get("rounds"), list) else None
 
 
 def _execution_conflict(evidence: Mapping[str, Any]) -> bool:
-    observations = evidence.get("observations")
-    if isinstance(observations, Mapping) and observations.get(
-        "execution_vqa_conflict"
-    ) is True:
-        return True
-    direct = evidence.get("execution_vqa")
-    if isinstance(direct, Mapping) and direct.get("evidence_conflict") is True:
-        return True
     assessment = _query_assessment(evidence)
     if assessment is not None:
         candidates = assessment.get("conflict_candidate_ids")
@@ -116,39 +70,18 @@ def _execution_conflict(evidence: Mapping[str, Any]) -> bool:
             return True
     return any(
         isinstance(item, Mapping)
-        and isinstance(item.get("execution_vqa"), Mapping)
-        and item["execution_vqa"].get("evidence_conflict") is True
+        and (
+            (
+                isinstance(item.get("vqa"), Mapping)
+                and item["vqa"].get("evidence_conflict") is True
+            )
+            or (
+                isinstance(item.get("outcome_semantics"), Mapping)
+                and item["outcome_semantics"].get("evidence_conflict") is True
+            )
+        )
         for item in evidence.get("rounds", [])
     )
-
-
-def _unsupported_capabilities(evidence: Mapping[str, Any]) -> list[str]:
-    values: list[Any] = []
-    limitations = evidence.get("limitations")
-    if isinstance(limitations, Mapping):
-        values.extend(
-            limitations.get("global_route_unsupported_capabilities") or []
-        )
-    global_route = evidence.get("global_query_route")
-    if isinstance(global_route, Mapping):
-        selection = global_route.get("selection")
-        if isinstance(selection, Mapping):
-            values.extend(selection.get("unsupported_capabilities") or [])
-    normalized: list[str] = []
-    for value in values:
-        if isinstance(value, str) and value.strip():
-            text = value.strip()
-        elif isinstance(value, Mapping):
-            task_name = value.get("task_name")
-            aspect_id = value.get("aspect_id")
-            if not isinstance(task_name, str) or not isinstance(aspect_id, str):
-                continue
-            text = f"{task_name}:{aspect_id}"
-        else:
-            continue
-        if text not in normalized:
-            normalized.append(text)
-    return normalized
 
 
 def _query_assessment(evidence: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -172,34 +105,13 @@ def _tested_candidates(evidence: Mapping[str, Any]) -> list[str]:
                 if isinstance(item, str) and item
             ]
         )
-    plan = evidence.get("plan")
-    if isinstance(plan, Mapping) and isinstance(
-        plan.get("completed_template_ids"), list
-    ):
-        return _dedupe(
-            [
-                str(item)
-                for item in plan["completed_template_ids"]
-                if isinstance(item, str) and item
-            ]
-        )
-    result = []
+    result: list[str] = []
     for item in evidence.get("rounds", []):
         if not isinstance(item, Mapping):
             continue
-        round_plan = item.get("round_plan")
-        sources = [item, round_plan] if isinstance(round_plan, Mapping) else [item]
-        candidate = next(
-            (
-                source.get("template_id")
-                for source in sources
-                if isinstance(source.get("template_id"), str)
-                and source.get("template_id")
-            ),
-            None,
-        )
+        candidate = item.get("candidate_id")
         if candidate is not None and candidate not in result:
-            result.append(candidate)
+            result.append(str(candidate))
     return result
 
 
@@ -215,42 +127,16 @@ def _untested_candidates(evidence: Mapping[str, Any]) -> list[str]:
                 if isinstance(item, str) and item
             ]
         )
-    plan = evidence.get("plan")
-    if isinstance(plan, Mapping) and isinstance(
-        plan.get("remaining_template_ids"), list
-    ):
-        return _dedupe(
-            [
-                str(item)
-                for item in plan["remaining_template_ids"]
-                if isinstance(item, str) and item
-            ]
-        )
     return []
 
 
 def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
-    observations = evidence.get("observations")
-    if isinstance(observations, Mapping) and observations.get(
-        "pipeline_passed"
-    ) is False:
-        return "pipeline_invalid", None
     assessment = _query_assessment(evidence)
     if assessment is not None:
         reason = assessment.get("stop_reason")
         verdict = assessment.get("claim_verdict")
         sufficient = assessment.get("evidence_sufficient")
         should_stop = assessment.get("should_stop")
-        # Batch37 and earlier evidence used ``evidence_sufficient`` as the
-        # stop reason.  Read it as the paper-aligned Agent-authored stop; do
-        # not carry the retired formal stop-contract state into current evidence.
-        if (
-            reason == "evidence_sufficient"
-            and sufficient is True
-            and should_stop is True
-            and verdict in {"supported", "refuted"}
-        ):
-            reason = "agent_stop"
         valid_query_stop = (
             reason == "agent_stop"
             and should_stop is True
@@ -264,13 +150,6 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
                     and verdict == "inconclusive"
                 )
             )
-        ) or (
-            reason in {
-                "agent_inconclusive_stop",
-                "agent_saturation_inconclusive",
-            }
-            and sufficient is False
-            and should_stop is True
         ) or (
             reason == "budget_exhausted"
             and sufficient is False
@@ -296,6 +175,18 @@ def _termination(evidence: Mapping[str, Any]) -> tuple[str, str | None]:
         raise AnswerScopeError(
             "query sufficiency assessment has an inconsistent stop verdict"
         )
+    policy_rounds = [
+        item
+        for item in evidence.get("rounds", [])
+        if isinstance(item, Mapping)
+        and item.get("planning_observation") is None
+    ]
+    if policy_rounds and any(
+        not isinstance(item.get("pipeline"), Mapping)
+        or item["pipeline"].get("passed") is not True
+        for item in policy_rounds
+    ):
+        return "pipeline_invalid", None
     plan = evidence.get("plan")
     if isinstance(plan, Mapping):
         budget_remaining = plan.get("round_budget_remaining")
@@ -314,7 +205,6 @@ def _canonical_limitations(
     sample_count: int | None,
     seeds: list[int],
     untested: list[str],
-    unsupported: list[str],
     conflict: bool,
     termination: str,
 ) -> list[dict[str, str]]:
@@ -340,13 +230,6 @@ def _canonical_limitations(
                 "text": f"Untested candidates remain: {untested}.",
             }
         )
-    if unsupported:
-        limitations.append(
-            {
-                "code": "unsupported_capabilities",
-                "text": f"Unsupported requested capabilities remain: {unsupported}.",
-            }
-        )
     if conflict:
         limitations.append(
             {
@@ -359,15 +242,6 @@ def _canonical_limitations(
             "The Plan Agent stopped after reading the completed evidence. "
             "The conclusion remains limited to the recorded task, policy, "
             "variants, samples, and seeds."
-        ),
-        "agent_inconclusive_stop": (
-            "The Plan Agent declared that it had no further grounded "
-            "Proposal. The Query remains inconclusive and untested concerns "
-            "may still exist."
-        ),
-        "agent_saturation_inconclusive": (
-            "Historical Agent-declared saturation stop. The Query remains "
-            "inconclusive and untested concerns may still exist."
         ),
         "budget_exhausted": (
             "The run stopped because its external round budget was exhausted "
@@ -406,14 +280,12 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
     sample_count = _sample_count(evidence, seeds)
     tested = _tested_candidates(evidence)
     untested = _untested_candidates(evidence)
-    unsupported = _unsupported_capabilities(evidence)
     conflict = _execution_conflict(evidence)
     termination, claim_verdict = _termination(evidence)
     limitations = _canonical_limitations(
         sample_count=sample_count,
         seeds=seeds,
         untested=untested,
-        unsupported=unsupported,
         conflict=conflict,
         termination=termination,
     )
@@ -424,7 +296,6 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
             "seeds": seeds,
             "tested_candidate_ids": tested,
             "untested_candidate_ids": untested,
-            "unsupported_capabilities": unsupported,
             "evidence_conflict": conflict,
             "termination": termination,
             "claim_verdict": claim_verdict,
@@ -436,15 +307,12 @@ def build_answer_scope(evidence: Mapping[str, Any]) -> dict[str, Any]:
 def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
     if (
         not isinstance(value, Mapping)
-        or frozenset(value)
-        not in {frozenset(_SCOPE_KEYS), frozenset(_LEGACY_SCOPE_KEYS)}
+        or set(value) != _SCOPE_KEYS
     ):
         raise AnswerScopeError(
-            "AnswerScope fields must match the current or legacy schema"
+            "AnswerScope fields must match the current schema"
         )
     scope = deepcopy(dict(value))
-    for field in _INTENT_SCOPE_KEYS:
-        scope.pop(field, None)
     if scope.get("schema_version") != 1:
         raise AnswerScopeError("AnswerScope schema_version must be 1")
     count = scope.get("sample_count")
@@ -462,7 +330,6 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
     for field in (
         "tested_candidate_ids",
         "untested_candidate_ids",
-        "unsupported_capabilities",
     ):
         values = scope.get(field)
         if (
@@ -504,7 +371,6 @@ def validate_answer_scope(value: Mapping[str, Any]) -> dict[str, Any]:
         sample_count=count,
         seeds=seeds,
         untested=scope["untested_candidate_ids"],
-        unsupported=scope["unsupported_capabilities"],
         conflict=scope["evidence_conflict"],
         termination=scope["termination"],
     )

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import math
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-from mea.providers.json_response import extract_json_response
 from mea.toolkit.tools import TrajectoryView
 
 from .metric_codegen import (
@@ -21,9 +19,7 @@ from .metric_evaluation import evaluate_metric_spec
 from .metric_oracle import (
     _metric_semantic_differences,
     _metric_semantic_projection,
-    _semantic_review_prompt,
     _validate_external_oracle_result,
-    _validate_semantic_review,
 )
 from .metric_schema import (
     MetricSpecError,
@@ -146,7 +142,7 @@ def _validate_metric_source(
                 "validation_authority": (
                     "caller_supplied_independent_numeric_oracle"
                     if oracle_evaluator is not None
-                    else "toolgen_semantic_review_runtime"
+                    else "toolgen_runtime_validation"
                     if spec["operation"] == "derived_observable"
                     else "typed_metric_spec_interpreter"
                 ),
@@ -287,23 +283,10 @@ def execute_metric_spec(
         registry_match = find_run_local_registration(
             registry_dir, tool_spec=tool_spec, episode_dirs=episodes
         )
-    semantic_review: dict[str, Any] | None = None
-    automatic_derived_validation = (
+    runtime_derived_validation = (
         spec["operation"] == "derived_observable"
         and oracle_evaluator is None
     )
-    if registry_match is not None and automatic_derived_validation:
-        stored_review = (
-            registry_match["registration"]
-            .get("validation", {})
-            .get("semantic_review")
-        )
-        try:
-            semantic_review = _validate_semantic_review(stored_review)
-        except MetricSpecError:
-            # A legacy derived Tool without this review contract is not an
-            # exact match for the new mainline validation authority.
-            registry_match = None
     if registry_match is not None:
         source_path = registry_match["source_path"]
         route = "semantic_library_reuse"
@@ -363,40 +346,7 @@ def execute_metric_spec(
                 (attempt_dir / "generated_tool.py").write_text(
                     candidate, encoding="utf-8"
                 )
-                candidate_review = None
-                failure_stage = "generated_source_validation"
-                if automatic_derived_validation:
-                    validate_generated_tool(candidate)
-                    _validate_derived_signal_access(candidate, spec)
-                    review_prompt = _semantic_review_prompt(
-                        metric=metric,
-                        metric_spec=spec,
-                        source_text=candidate,
-                    )
-                    (attempt_dir / "review_prompt.md").write_text(
-                        review_prompt,
-                        encoding="utf-8",
-                    )
-                    failure_stage = "semantic_review"
-                    review_response = provider.text(
-                        review_prompt,
-                        model=model.strip(),
-                        system="Return only strict ToolGen semantic-review JSON.",
-                        max_tokens=500,
-                        temperature=0.0,
-                    )
-                    (attempt_dir / "review_response.txt").write_text(
-                        review_response + "\n",
-                        encoding="utf-8",
-                    )
-                    candidate_review = _validate_semantic_review(
-                        extract_json_response(review_response)
-                    )
-                    _write_json(
-                        attempt_dir / "semantic_review.json",
-                        candidate_review,
-                    )
-                failure_stage = "live_validation_oracle"
+                failure_stage = "runtime_validation"
                 (
                     candidate_rows,
                     candidate_fixture_rows,
@@ -414,7 +364,7 @@ def execute_metric_spec(
                     "failure_stage": failure_stage,
                     "required": (
                         "The complete generated_tool must satisfy the typed "
-                        "MetricSpec, static checks, and live telemetry oracle."
+                        "MetricSpec, runtime gates, and any supplied numeric oracle."
                     ),
                     "provider": deepcopy(
                         dict(getattr(provider, "last_metadata", {}))
@@ -431,7 +381,6 @@ def execute_metric_spec(
             fixture_rows = candidate_fixture_rows
             values = candidate_values
             successful_attempt = attempt_index
-            semantic_review = candidate_review
             _write_json(
                 attempt_dir / "validation.json",
                 {
@@ -442,7 +391,6 @@ def execute_metric_spec(
                         True if oracle_evaluator is not None else None
                     ),
                     "semantic_contract_valid": True,
-                    "semantic_review": semantic_review,
                     "artifacts_unchanged": True,
                 },
             )
@@ -461,7 +409,6 @@ def execute_metric_spec(
             "failures": failures,
             "model_requested": model.strip(),
             "provider": deepcopy(dict(getattr(provider, "last_metadata", {}))),
-            "semantic_review": semantic_review,
         }
     else:
         if spec["operation"] == "derived_observable":
@@ -493,7 +440,6 @@ def execute_metric_spec(
             episode_dirs=episodes,
             source_path=source_path,
             tool_id=metric,
-            semantic_review=semantic_review,
         )
     elif registry_match is not None:
         registration = registry_match
@@ -511,13 +457,12 @@ def execute_metric_spec(
         "tool_spec": tool_spec,
         "task_code_context_consumed": context is not None,
         "validation_authority": (
-            "toolgen_semantic_review_runtime"
-            if automatic_derived_validation
+            "toolgen_runtime_validation"
+            if runtime_derived_validation
             else "caller_supplied_independent_numeric_oracle"
             if spec["operation"] == "derived_observable"
             else "typed_metric_spec_interpreter"
         ),
-        "semantic_review": semantic_review,
         "fixtures": fixture_rows,
         "episodes": rows,
         "registration": (
@@ -537,10 +482,9 @@ def execute_metric_spec(
                 else "provider-free compatibility compiler"
             ),
             (
-                "semantic review plus declared-signal, deterministic, finite-"
-                "result, evidence-step, and artifact-immutability gates; no "
-                "success or reward authority"
-                if automatic_derived_validation
+                "declared-signal, deterministic, finite-result, evidence-step, "
+                "and read-only telemetry gates; no success or reward authority"
+                if runtime_derived_validation
                 else "output is checked twice against the caller-supplied "
                 "numeric oracle on fixtures and live episodes"
                 if spec["operation"] == "derived_observable"

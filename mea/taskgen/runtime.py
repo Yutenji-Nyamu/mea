@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from datetime import datetime
@@ -867,20 +866,6 @@ def create_generic_provider_taskgen_run(
                     f"generic candidate artifact is missing: {source_name}"
                 )
             shutil.move(str(source), str(run_dir / destination_name))
-        for source_name, destination_name in {
-            "checker_semantic_review.json": (
-                "validation/checker_semantic_review.json"
-            ),
-            "checker_semantic_review_prompt.md": (
-                "generation/checker_semantic_review_prompt.md"
-            ),
-            "checker_semantic_review_response.txt": (
-                "generation/checker_semantic_review_response.txt"
-            ),
-        }.items():
-            source = run_dir / source_name
-            if source.is_file():
-                shutil.move(str(source), str(run_dir / destination_name))
         write_json(
             run_dir / "generation/provider_response.json",
             extract_json_response(
@@ -975,14 +960,6 @@ def create_generic_provider_taskgen_run(
         }
     )
     if reused_manifest is not None:
-        reused_candidate_manifest = json.loads(
-            (run_dir / "candidate_manifest.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        checker_semantic_review = reused_candidate_manifest.get(
-            "checker_semantic_review"
-        )
         reused_manifest["scene_validation"] = {
             **expert_scene,
             "setup_fixture": setup_scene,
@@ -1018,7 +995,6 @@ def create_generic_provider_taskgen_run(
             "preserved_conditions_verified": run_local_preflight.get(
                 "preserved_conditions_verified"
             ),
-            "checker_semantic_review": checker_semantic_review,
         }
         reused_manifest["task_context"] = {
             "path": "validation/task_context.json",
@@ -1056,17 +1032,11 @@ def create_generic_provider_taskgen_run(
             }
         )
         write_json(run_dir / "manifest.json", reused_manifest)
-        artifact_entry = artifact_index.mark_reuse(
-            resolution["semantic_key"]
-        )
-        reused_manifest["artifact_reuse"]["reuse_count"] = artifact_entry[
-            "reuse_count"
-        ]
+        exact_match = resolution["exact_match"]
         reused_manifest["artifact_registry"] = {
-            "kind": artifact_entry["kind"],
-            "semantic_key": artifact_entry["semantic_key"],
-            "artifact_path": artifact_entry["artifact_path"],
-            "reuse_count": artifact_entry["reuse_count"],
+            "kind": "task",
+            "semantic_key": deepcopy(resolution["semantic_key"]),
+            "artifact_path": exact_match["artifact_manifest"],
             "index_path": str(
                 artifact_index.registry.index_path.relative_to(repo_root)
             ).replace("\\", "/"),
@@ -1099,20 +1069,8 @@ def create_generic_provider_taskgen_run(
                 for item in validation["checker_fixtures"]
                 if item.get("passed") is True
             ),
-            "checker_semantic_review": validation.get(
-                "checker_semantic_review"
-            ),
         }
     }
-    try:
-        base_commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo_root,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        base_commit = None
     manifest: dict[str, Any] = {
         "schema_version": 1,
         "run_id": run_id,
@@ -1123,7 +1081,6 @@ def create_generic_provider_taskgen_run(
         "task_module": candidate_manifest["task_module"],
         "mode": "generic_provider_scene_checker_codegen",
         "generation_kind": "generic_provider_scene_checker_codegen",
-        "base_commit": base_commit,
         "overlay": str((run_dir / "overlay.yml").relative_to(repo_root)).replace(
             "\\", "/"
         ),
@@ -1208,9 +1165,6 @@ def create_generic_provider_taskgen_run(
             "preserved_conditions_verified": accepted_preflight.get(
                 "preserved_conditions_verified"
             ),
-            "checker_semantic_review": validation.get(
-                "checker_semantic_review"
-            ),
         },
         "task_artifact_summary": {
             "scene_origin": (
@@ -1249,13 +1203,11 @@ def create_generic_provider_taskgen_run(
     artifact_entry = artifact_index.register_generated(
         resolution=resolution,
         manifest_path=run_dir / "manifest.json",
-        source_query=request,
     )
     manifest["artifact_registry"] = {
         "kind": artifact_entry["kind"],
         "semantic_key": artifact_entry["semantic_key"],
         "artifact_path": artifact_entry["artifact_path"],
-        "reuse_count": artifact_entry["reuse_count"],
         "index_path": str(
             artifact_index.registry.index_path.relative_to(repo_root)
         ).replace("\\", "/"),
@@ -1305,15 +1257,6 @@ def record_generic_taskgen_generation_failure(
                 generation_result = dict(candidate_result)
         except (OSError, json.JSONDecodeError):
             pass
-    try:
-        base_commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo_root,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        ).strip()
-    except (OSError, subprocess.CalledProcessError):
-        base_commit = None
     candidate_unexecutable = isinstance(error, CandidateUnexecutableError)
     error_result = getattr(error, "result", {})
     if isinstance(error_result, Mapping) and error_result:
@@ -1351,7 +1294,6 @@ def record_generic_taskgen_generation_failure(
         "task_module": None,
         "mode": "generic_provider_scene_checker_codegen",
         "generation_kind": "generic_provider_scene_checker_codegen",
-        "base_commit": base_commit,
         "telemetry_profile": telemetry_profile,
         "provider": {
             "model_requested": model,

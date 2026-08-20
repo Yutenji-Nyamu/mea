@@ -20,7 +20,6 @@ from .generic_contracts import (
     GenericTaskGenHooks,
 )
 from .provider_scene_checker import retrieve_class_methods
-from .semantic_review import checker_review_identity
 
 
 def _text(value: Any, *, field: str) -> str:
@@ -111,11 +110,30 @@ def _normalize_adapter(
             "methods": ["load_actors", "check_success"],
             "static_and_fixture_validation": True,
             "semantic_validation": "task_schema_contract_v2",
-            "checker_semantic_review": "taskgen_checker_semantic_review_v1",
             "render_preflight": True,
             "expert_preflight": True,
             "local_repair_limit": 1,
         },
+    }
+
+
+def _evaluation_intent_identity(
+    candidate: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Project only the typed intent facts that define exact Task reuse."""
+
+    intent = candidate.get("evaluation_intent")
+    if not isinstance(intent, Mapping):
+        return None
+    return {
+        field: deepcopy(intent.get(field))
+        for field in (
+            "original_concern",
+            "hypothesis",
+            "requested_change",
+            "preserved_conditions",
+            "required_observation",
+        )
     }
 
 
@@ -159,14 +177,13 @@ def generic_task_semantic_key(
         _resolve_repo_file(root, str(relative), label="adapter asset")
     for relative in normalized_adapter["documentation_paths"]:
         _resolve_repo_file(root, str(relative), label="adapter documentation")
-    review_identity = checker_review_identity(normalized_candidate)
     return {
         "schema_version": 2,
         "base_task": normalized_candidate["base_task"],
         "semantic_concern": normalized_candidate["semantic_concern"],
         "scene_need": normalized_candidate["scene_need"],
         "checker_need": normalized_candidate["checker_need"],
-        "evaluation_intent": review_identity["evaluation_intent"],
+        "evaluation_intent": _evaluation_intent_identity(normalized_candidate),
         "adapter_contract": {
             "official_source": normalized_adapter["official_source"],
             "official_class": normalized_adapter["official_class"],

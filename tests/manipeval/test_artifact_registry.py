@@ -15,7 +15,7 @@ class ArtifactRegistryTests(unittest.TestCase):
     def tearDown(self):
         self._temporary.cleanup()
 
-    def test_register_retrieve_and_reuse_exact_semantic_key(self):
+    def test_register_and_retrieve_exact_semantic_key_without_mutation(self):
         registered = self.registry.register(
             kind="task",
             semantic_key={
@@ -23,10 +23,11 @@ class ArtifactRegistryTests(unittest.TestCase):
                 "concern": "robustness.distractor_avoidance",
             },
             artifact_path="runs/taskgen/task.py",
-            validation={"status": "passed", "fixtures": "3/3"},
-            source_query="Does a nearby distractor cause a false grasp?",
         )
-        self.assertEqual(registered["reuse_count"], 0)
+        self.assertEqual(
+            set(registered), {"kind", "semantic_key", "artifact_path"}
+        )
+        encoded = self.index_path.read_text(encoding="utf-8")
 
         retrieved = self.registry.retrieve(
             kind="task",
@@ -37,18 +38,16 @@ class ArtifactRegistryTests(unittest.TestCase):
         )
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved["artifact_path"], "runs/taskgen/task.py")
-        self.assertEqual(retrieved["reuse_count"], 1)
-        self.assertEqual(self.registry.entries(kind="task")[0]["reuse_count"], 1)
+        self.assertEqual(self.index_path.read_text(encoding="utf-8"), encoded)
 
     def test_same_semantic_key_cannot_silently_change_artifact(self):
         fields = {
             "kind": "tool",
             "semantic_key": {"metric": "precontact_jerk_peak"},
             "artifact_path": "tools/jerk.py",
-            "validation": {"status": "passed"},
-            "source_query": "Is there jerk before contact?",
         }
-        self.registry.register(**fields)
+        first = self.registry.register(**fields)
+        self.assertEqual(self.registry.register(**fields), first)
         with self.assertRaisesRegex(
             ArtifactRegistryError, "different artifact"
         ):
@@ -56,13 +55,11 @@ class ArtifactRegistryTests(unittest.TestCase):
                 **{**fields, "artifact_path": "tools/other.py"}
             )
 
-    def test_entry_schema_is_the_shared_six_field_contract(self):
+    def test_entry_schema_is_the_shared_three_field_contract(self):
         self.registry.register(
             kind="vqa",
             semantic_key={"question": "wrong_object_contact"},
             artifact_path="vqa/question.json",
-            validation={"status": "reviewed"},
-            source_query="Did the gripper contact the wrong object?",
         )
         payload = json.loads(self.index_path.read_text(encoding="utf-8"))
         self.assertEqual(
@@ -71,9 +68,6 @@ class ArtifactRegistryTests(unittest.TestCase):
                 "kind",
                 "semantic_key",
                 "artifact_path",
-                "validation",
-                "source_query",
-                "reuse_count",
             },
         )
 

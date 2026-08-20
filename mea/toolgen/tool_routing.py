@@ -141,8 +141,8 @@ def _execute_typed_metric_request(
         decision["matched_registry"] = "query_induced_python_tool"
         decision["reason"] = (
             "registry miss triggered provider Python generation; static, "
-            "semantic-review/oracle, determinism, artifact, and live-"
-            "telemetry gates passed"
+            "deterministic-runtime, artifact, live-telemetry, and applicable "
+            "numeric-oracle gates passed"
         )
     decision["provider_called"] = bool(raw.get("provider_called"))
     _write_json(destination / "route_decision.json", decision)
@@ -179,10 +179,10 @@ def _execute_typed_metric_request(
     )
     validation_authority = raw.get("validation_authority")
     # A typed MetricSpec is executed by provider-written Python but checked by
-    # the separate trusted interpreter below.  That interpreter is an
-    # independent numeric oracle just as a caller-owned evaluator is; only a
-    # free-form derived observable without either authority remains a semantic
-    # review rather than numeric oracle evidence.
+    # the separate trusted interpreter below. That interpreter is an
+    # independent numeric oracle just as a caller-owned evaluator is. A
+    # free-form derived observable without either authority has runtime gates,
+    # but no numeric oracle evidence.
     independent_numeric_oracle = validation_authority in {
         "caller_supplied_independent_numeric_oracle",
         "typed_metric_spec_interpreter",
@@ -227,9 +227,8 @@ def _execute_typed_metric_request(
                 else "caller_supplied_numeric_oracle"
                 if validation_authority
                 == "caller_supplied_independent_numeric_oracle"
-                else "semantic_review_only"
+                else "no_numeric_oracle"
             ),
-            "semantic_review": raw.get("semantic_review"),
             "task_code_context_consumed": bool(
                 raw.get("task_code_context_consumed")
             ),

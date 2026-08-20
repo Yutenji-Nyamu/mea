@@ -10,7 +10,6 @@ MODEL_STAGES = (
     "taskgen",
     "toolgen",
     "vision",
-    "feedback",
 )
 
 MODEL_PROFILES: dict[str, dict[str, str]] = {
@@ -25,7 +24,6 @@ MODEL_PROFILES: dict[str, dict[str, str]] = {
         "taskgen": "gpt-5.6-terra",
         "toolgen": "gpt-5.6-terra",
         "vision": "gpt-5.6-luna",
-        "feedback": "gpt-5.6-luna",
     },
     "quality": {
         stage: "gpt-5.6-sol" for stage in MODEL_STAGES

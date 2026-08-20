@@ -494,6 +494,10 @@ class ToolOrchestrationTests(unittest.TestCase):
         )
         self.assertTrue((output_dir / "generated/generated_tool.py").is_file())
         self.assertTrue((output_dir / "generated/registration.json").is_file())
+        manifest = json.loads(
+            (output_dir / "generated/manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertNotIn("base_commit", manifest)
 
     def test_force_codegen_new_duration_uses_composite_oracle(self):
         provider = FakeProvider(

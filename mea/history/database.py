@@ -8,7 +8,6 @@ evidence: retrieval returns compact planning context, never trajectory data.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import unicodedata
@@ -34,7 +33,7 @@ class IncompleteEvaluationError(HistoryRecordError):
 
 
 HISTORY_RECORD_SCHEMA_VERSION = 1
-HISTORY_DATABASE_SCHEMA_VERSION = 1
+HISTORY_DATABASE_SCHEMA_VERSION = 2
 LEGACY_SUB_ASPECT_TEMPLATES = {
     "object_appearance.color": "object_appearance.color_blue",
     "object_position": "object_position.official_random",
@@ -163,7 +162,7 @@ def _request_from_artifacts(
     evidence: Mapping[str, Any],
     evaluation_dir: Path,
 ) -> str:
-    for value in (manifest.get("user_request"), evidence.get("user_request")):
+    for value in (manifest.get("user_request"), evidence.get("query")):
         if isinstance(value, str) and value.strip():
             return value.strip()
     request_path = evaluation_dir / "request.json"
@@ -401,9 +400,37 @@ def build_history_record(
             )
         )
         legacy_template_ids_inferred = bool(requested)
-    observations = evidence.get("observations")
-    if not isinstance(observations, Mapping):
-        observations = {}
+    evidence_rounds = evidence.get("rounds")
+    typed_rounds = (
+        [item for item in evidence_rounds if isinstance(item, Mapping)]
+        if isinstance(evidence_rounds, list)
+        else []
+    )
+    policy_rounds = [
+        item
+        for item in typed_rounds
+        if item.get("planning_observation") is None
+    ]
+    pipeline_passed = (
+        all(
+            isinstance(item.get("pipeline"), Mapping)
+            and item["pipeline"].get("passed") is True
+            for item in policy_rounds
+        )
+        if policy_rounds
+        else None
+    )
+    evidence_conflict = any(
+        (
+            isinstance(item.get("vqa"), Mapping)
+            and item["vqa"].get("evidence_conflict") is True
+        )
+        or (
+            isinstance(item.get("outcome_semantics"), Mapping)
+            and item["outcome_semantics"].get("evidence_conflict") is True
+        )
+        for item in typed_rounds
+    )
 
     record: dict[str, Any] = {
         "schema_version": HISTORY_RECORD_SCHEMA_VERSION,
@@ -430,13 +457,10 @@ def build_history_record(
         },
         "outcome": {
             "status": manifest.get("status"),
-            "pipeline_passed": observations.get("pipeline_passed"),
-            "evidence_conflict": bool(
-                observations.get("execution_vqa_conflict", False)
-            ),
+            "pipeline_passed": pipeline_passed,
+            "evidence_conflict": evidence_conflict,
         },
         "compatibility": {
-            "base_commit": manifest.get("base_commit"),
             "evidence_schema_version": evidence.get("schema_version"),
             "legacy_completion_inferred": legacy_completion_inferred,
             "legacy_template_ids_inferred": legacy_template_ids_inferred,
@@ -585,10 +609,54 @@ class EvaluationHistoryDB:
                         checkpoint_setting TEXT,
                         user_query TEXT NOT NULL,
                         normalized_query TEXT NOT NULL,
-                        record_sha256 TEXT NOT NULL,
                         record_json TEXT NOT NULL,
                         indexed_at TEXT NOT NULL
                     );
+                    """
+                )
+                columns = {
+                    row["name"]
+                    for row in connection.execute(
+                        "PRAGMA table_info(evaluations)"
+                    )
+                }
+                if "record_sha256" in columns:
+                    connection.executescript(
+                        """
+                        BEGIN IMMEDIATE;
+                        DROP TABLE IF EXISTS evaluations_without_record_sha256;
+                        CREATE TABLE evaluations_without_record_sha256 (
+                            evaluation_id TEXT PRIMARY KEY,
+                            schema_version INTEGER NOT NULL,
+                            completed_at TEXT,
+                            task_name TEXT NOT NULL,
+                            policy_name TEXT NOT NULL,
+                            checkpoint_setting TEXT,
+                            user_query TEXT NOT NULL,
+                            normalized_query TEXT NOT NULL,
+                            record_json TEXT NOT NULL,
+                            indexed_at TEXT NOT NULL
+                        );
+                        INSERT INTO evaluations_without_record_sha256(
+                            evaluation_id, schema_version, completed_at,
+                            task_name, policy_name, checkpoint_setting,
+                            user_query, normalized_query, record_json,
+                            indexed_at
+                        )
+                        SELECT
+                            evaluation_id, schema_version, completed_at,
+                            task_name, policy_name, checkpoint_setting,
+                            user_query, normalized_query, record_json,
+                            indexed_at
+                        FROM evaluations;
+                        DROP TABLE evaluations;
+                        ALTER TABLE evaluations_without_record_sha256
+                            RENAME TO evaluations;
+                        COMMIT;
+                        """
+                    )
+                connection.executescript(
+                    """
                     CREATE INDEX IF NOT EXISTS evaluations_task_idx
                         ON evaluations(task_name);
                     CREATE INDEX IF NOT EXISTS evaluations_task_policy_idx
@@ -615,18 +683,17 @@ class EvaluationHistoryDB:
     def upsert_record(self, record: Mapping[str, Any]) -> dict[str, Any]:
         normalized = validate_history_record(record)
         encoded = _canonical_json(normalized)
-        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
         policy = normalized["policy"]
         indexed_at = datetime.now().astimezone().isoformat()
         try:
             with closing(self._connect()) as connection, connection:
                 previous = connection.execute(
-                    "SELECT record_sha256 FROM evaluations WHERE evaluation_id = ?",
+                    "SELECT record_json FROM evaluations WHERE evaluation_id = ?",
                     (normalized["evaluation_id"],),
                 ).fetchone()
                 if previous is None:
                     action = "inserted"
-                elif previous["record_sha256"] == digest:
+                elif previous["record_json"] == encoded:
                     action = "unchanged"
                 else:
                     action = "updated"
@@ -635,8 +702,8 @@ class EvaluationHistoryDB:
                     INSERT INTO evaluations(
                         evaluation_id, schema_version, completed_at, task_name,
                         policy_name, checkpoint_setting, user_query,
-                        normalized_query, record_sha256, record_json, indexed_at
-                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        normalized_query, record_json, indexed_at
+                    ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(evaluation_id) DO UPDATE SET
                         schema_version=excluded.schema_version,
                         completed_at=excluded.completed_at,
@@ -645,10 +712,9 @@ class EvaluationHistoryDB:
                         checkpoint_setting=excluded.checkpoint_setting,
                         user_query=excluded.user_query,
                         normalized_query=excluded.normalized_query,
-                        record_sha256=excluded.record_sha256,
                         record_json=excluded.record_json,
                         indexed_at=CASE
-                            WHEN evaluations.record_sha256 = excluded.record_sha256
+                            WHEN evaluations.record_json = excluded.record_json
                             THEN evaluations.indexed_at
                             ELSE excluded.indexed_at
                         END
@@ -662,7 +728,6 @@ class EvaluationHistoryDB:
                         policy.get("checkpoint_setting"),
                         normalized["user_request"],
                         _normalize_query(normalized["user_request"]),
-                        digest,
                         encoded,
                         indexed_at,
                     ),
@@ -672,7 +737,6 @@ class EvaluationHistoryDB:
         return {
             "evaluation_id": normalized["evaluation_id"],
             "action": action,
-            "record_sha256": digest,
         }
 
     def index_evaluation_dir(self, evaluation_dir: str | Path) -> dict[str, Any]:

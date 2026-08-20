@@ -1,16 +1,15 @@
 """Direct initial-plan construction for the production Plan Agent runtime.
 
-This module deliberately does not import ``CatalogPlanAgent`` or any
-task-specific planner.  The caller has already frozen a task/checkpoint target;
-the only remaining initial planning decision is whether the runtime limits
-requires an unchanged official control before Query-derived candidates.
+This module has no catalog or task-specific planner delegation. The caller has
+already frozen a task/checkpoint target; the only remaining initial planning
+decision is whether runtime limits require an unchanged official control before
+Query-derived candidates.
 """
 
 from __future__ import annotations
 
 import json
 import re
-import subprocess
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -69,18 +68,6 @@ def _target_binding(target: Mapping[str, Any]) -> dict[str, Any]:
             target.get("checkpoint"), field="target.checkpoint"
         ),
     }
-
-
-def _git_head(repo_root: Path) -> str | None:
-    process = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=repo_root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return process.stdout.strip() if process.returncode == 0 else None
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -344,7 +331,6 @@ class PlanAgentInitialPlanBuilder:
             ),
             "created_at": datetime.now().astimezone().isoformat(),
             "user_request": query,
-            "base_commit": _git_head(self.repo_root),
             "planner": {
                 "kind": self.planner_kind,
                 "model_requested": None,

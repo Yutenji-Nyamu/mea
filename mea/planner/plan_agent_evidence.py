@@ -8,10 +8,45 @@ from typing import Any, Mapping, Sequence
 
 from mea.artifact_retrieval_index import resolve_task_retrieval_index
 
+from .evidence_policy import (
+    _GENERATED_POLICY_AUTHORITY,
+    _OFFICIAL_POLICY_AUTHORITIES,
+    validate_round_evidence,
+)
 from .plan_agent_schema import PlanAgentError, validate_open_query_evidence
-from .evidence_policy import build_evidence_packet, validate_evidence_packet
 from .plan_agent_errors import PlanAgentSessionError
 from .query_interpretation import _nonempty_text
+
+
+def _policy_outcome_is_decidable(
+    policy: Mapping[str, Any],
+    outcome_semantics_status: str,
+) -> bool:
+    """Return whether one completed rate has a trusted success identity."""
+
+    metric = policy.get("metric")
+    authority = policy.get("authority")
+    official_equivalent = policy.get("official_equivalent")
+    if metric == "official_check_success":
+        return bool(
+            authority in _OFFICIAL_POLICY_AUTHORITIES
+            and official_equivalent is True
+            and outcome_semantics_status == "official_only"
+        )
+    if metric != "generated_check_success":
+        return False
+    if authority != _GENERATED_POLICY_AUTHORITY:
+        return False
+    return bool(
+        (
+            official_equivalent is True
+            and outcome_semantics_status == "equivalent_agreement"
+        )
+        or (
+            official_equivalent is False
+            and outcome_semantics_status == "expected_semantic_extension"
+        )
+    )
 
 
 def _round_candidate_id(round_plan: Mapping[str, Any]) -> str:
@@ -76,18 +111,18 @@ def _round_artifact_refs(
     )
     observations = round_summary.get("observations")
     observations = observations if isinstance(observations, Mapping) else {}
-    evidence_aggregate_path = str(
-        explicit_artifacts.get("evidence_aggregate") or ""
+    round_evidence_path = str(
+        explicit_artifacts.get("round_evidence") or ""
     ).strip()
-    if not evidence_aggregate_path and execution_dir:
-        evidence_aggregate_path = f"{execution_dir}/evidence_aggregate.json"
-    if evidence_aggregate_path and isinstance(
-        observations.get("evidence_aggregate"), Mapping
+    if not round_evidence_path and execution_dir:
+        round_evidence_path = f"{execution_dir}/round_evidence.json"
+    if round_evidence_path and isinstance(
+        observations.get("round_evidence"), Mapping
     ):
         refs.append(
             {
-                "kind": "evidence_aggregate",
-                "path": evidence_aggregate_path,
+                "kind": "round_evidence",
+                "path": round_evidence_path,
             }
         )
     aggregate_path = str(
@@ -137,82 +172,6 @@ def _round_artifact_refs(
     return refs
 
 
-def _compact_planned_tool_evidence(
-    observations: Mapping[str, Any],
-) -> list[dict[str, Any]]:
-    """Expose measured Tool values to the next semantic planning step.
-
-    The typed Tool execution remains authoritative. This projection is only a
-    compact prompt-facing observation; it never replaces official success or
-    changes the deterministic runtime evidence summary by itself.
-    """
-
-    planned = observations.get("planned_tool")
-    if not isinstance(planned, Mapping):
-        return []
-    route_decision = planned.get("route_decision")
-    route_decision = (
-        route_decision if isinstance(route_decision, Mapping) else {}
-    )
-    validation = planned.get("validation")
-    validation = validation if isinstance(validation, Mapping) else {}
-    route = (
-        planned.get("route")
-        or route_decision.get("resolved_route")
-        or route_decision.get("route")
-    )
-    provider_called = route_decision.get(
-        "provider_called",
-        validation.get("provider_called"),
-    )
-    tool_request = planned.get("tool_request")
-    tool_request = (
-        tool_request if isinstance(tool_request, Mapping) else {}
-    )
-    metric_spec = tool_request.get("metric_spec")
-    metric_spec = metric_spec if isinstance(metric_spec, Mapping) else {}
-    metric_description = str(metric_spec.get("description") or "").strip()
-    semantic_review = validation.get("semantic_review")
-    semantic_review = (
-        semantic_review if isinstance(semantic_review, Mapping) else {}
-    )
-    semantic_checks = semantic_review.get("checks")
-    semantic_checks = (
-        semantic_checks if isinstance(semantic_checks, Mapping) else {}
-    )
-    compact: list[dict[str, Any]] = []
-    episodes = planned.get("episodes")
-    if not isinstance(episodes, list):
-        return compact
-    for episode in episodes:
-        if not isinstance(episode, Mapping):
-            continue
-        result = episode.get("result")
-        result = result if isinstance(result, Mapping) else episode
-        details = result.get("details")
-        details = details if isinstance(details, Mapping) else {}
-        item = {
-            "metric": str(
-                result.get("tool")
-                or result.get("metric")
-                or planned.get("reference_tool")
-                or ""
-            ),
-            "value": result.get("value"),
-            "unit": result.get("unit"),
-            "passed": result.get("passed"),
-            "route": route,
-            "provider_called": provider_called,
-            "null_reason": details.get("reason"),
-        }
-        if metric_description:
-            item["description"] = metric_description
-        if semantic_checks.get("returns_diagnostic_not_success") is True:
-            item["returns_diagnostic_not_success"] = True
-        compact.append(item)
-    return compact
-
-
 def build_plan_agent_evidence_record(
     round_plan: Mapping[str, Any],
     round_summary: Mapping[str, Any],
@@ -222,78 +181,72 @@ def build_plan_agent_evidence_record(
     if round_plan.get("round_id") != round_summary.get("round_id"):
         raise PlanAgentSessionError("round plan and summary ids disagree")
     candidate_id = _round_candidate_id(round_plan)
-    evidence_round = deepcopy(dict(round_plan))
-    # EvidencePacket v1 calls this execution identity ``template_id``.  A
-    # dynamic plan has no catalog template, so project its candidate id into
-    # that legacy transport field without mutating the runtime plan.
-    if not evidence_round.get("template_id"):
-        evidence_round["template_id"] = candidate_id
-    packet = validate_evidence_packet(
-        build_evidence_packet(
-            {"rounds": [evidence_round], "max_rounds": 1},
-            [deepcopy(dict(round_summary))],
-        )
-    )
-    refs = _round_artifact_refs(round_summary)
     observations = round_summary.get("observations")
     observations = observations if isinstance(observations, Mapping) else {}
-    planning_observation = observations.get("planning_observation")
-    planning_observation = (
-        deepcopy(dict(planning_observation))
-        if isinstance(planning_observation, Mapping)
-        else None
-    )
-    policy_outcome = (
-        observations.get("policy_outcome")
-        if isinstance(observations.get("policy_outcome"), Mapping)
-        else {
-            "metric": "official_check_success",
-            "authority": "official_check_success",
-            "binding": None,
-            "value": None,
-            "official_equivalent": True,
-            "execution_scope": "legacy_unspecified_official",
-        }
-    )
-    outcome_semantics = observations.get("outcome_semantics")
-    if not isinstance(outcome_semantics, Mapping):
-        outcome_semantics = policy_outcome.get("outcome_semantics")
-    outcome_semantics = (
-        deepcopy(dict(outcome_semantics))
-        if isinstance(outcome_semantics, Mapping)
-        else {
-            "schema_version": 1,
-            "status": "non_comparable",
-            "evidence_conflict": False,
-            "official_equivalent": policy_outcome.get("official_equivalent"),
-            "episodes": [],
-            "reason_codes": ["outcome_semantics_not_recorded"],
-        }
-    )
+    raw_round_evidence = observations.get("round_evidence")
+    if not isinstance(raw_round_evidence, Mapping):
+        raise PlanAgentSessionError(
+            "completed round has no typed RoundEvidence"
+        )
+    evidence = validate_round_evidence(raw_round_evidence)
+    if evidence["round_id"] != str(round_plan["round_id"]):
+        raise PlanAgentSessionError(
+            "RoundEvidence round_id differs from the executed plan"
+        )
+    if evidence["candidate_id"] != candidate_id:
+        raise PlanAgentSessionError(
+            "RoundEvidence candidate_id differs from the executed plan"
+        )
+    refs = _round_artifact_refs(round_summary)
+    planning_observation = deepcopy(evidence["planning_observation"])
+    policy = evidence["policy"]
+    policy_outcome = {
+        "metric": policy["metric"],
+        "authority": policy["authority"],
+        "value": policy["success_rate"],
+        "official_equivalent": policy["official_equivalent"],
+        "execution_scope": policy["execution_scope"],
+    }
+    outcome_semantics = deepcopy(evidence["outcome_semantics"])
     outcome_semantics_status = str(
         outcome_semantics.get("status") or "non_comparable"
     )
-    strength = packet["evidence_strength"]
-    success_rate = packet["policy"]["success_rate"]
-    generated_metric = (
-        policy_outcome.get("metric") == "generated_check_success"
+    success_rate = policy["success_rate"]
+    policy_outcome_decidable = _policy_outcome_is_decidable(
+        policy,
+        outcome_semantics_status,
+    )
+    rule_ready = bool(
+        not evidence["rule"]["requested"]
+        or (
+            evidence["rule"]["status"] == "passed"
+            and evidence["rule"]["results"]
+        )
+    )
+    vqa_ready = bool(
+        not evidence["vqa"]["required"]
+        or evidence["vqa"]["status"] == "passed"
+    )
+    evidence_conflict = bool(
+        outcome_semantics_status == "conflict"
+        or outcome_semantics.get("evidence_conflict") is True
+        or evidence["vqa"]["evidence_conflict"]
     )
     if planning_observation is not None:
         semantic_outcome = "ambiguous"
         candidate_outcome = "unknown"
-    elif outcome_semantics_status == "conflict":
+    elif evidence_conflict:
         semantic_outcome = "ambiguous"
         candidate_outcome = "conflict"
-    elif generated_metric and outcome_semantics_status not in {
-        "equivalent_agreement",
-        "expected_semantic_extension",
-    }:
+    elif not policy_outcome_decidable:
         semantic_outcome = "ambiguous"
         candidate_outcome = "unknown"
-    elif strength == "conflicting":
-        semantic_outcome = "ambiguous"
-        candidate_outcome = "conflict"
-    elif strength != "sufficient" or success_rate is None:
+    elif (
+        not evidence["pipeline"]["passed"]
+        or not rule_ready
+        or not vqa_ready
+        or success_rate is None
+    ):
         semantic_outcome = "ambiguous"
         candidate_outcome = "unknown"
     elif float(success_rate) >= 1.0:
@@ -349,10 +302,23 @@ def build_plan_agent_evidence_record(
     limitations = [
         "One bounded runtime round is not a statistical generalization estimate."
     ]
-    if strength != "sufficient":
+    if not evidence["pipeline"]["passed"]:
         limitations.append(
-            "The typed Rule/VQA/pipeline evidence is not sufficient: "
-            + ", ".join(packet["reason_codes"] or [strength])
+            "The execution pipeline did not complete"
+            + (
+                f" at {evidence['pipeline']['failure_stage']}."
+                if evidence["pipeline"]["failure_stage"]
+                else "."
+            )
+        )
+    if evidence["rule"]["requested"] and not rule_ready:
+        limitations.append(
+            "The requested Rule evidence did not produce a passed result set."
+        )
+    if evidence["vqa"]["required"] and not vqa_ready:
+        limitations.append(
+            "The requested VQA evidence status is "
+            f"{evidence['vqa']['status']}."
         )
     if success_rate is None:
         limitations.append("Policy success was not reported for this round.")
@@ -381,9 +347,14 @@ def build_plan_agent_evidence_record(
     elif outcome_semantics_status == "conflict":
         limitations.append(
             "Generated and official/core success semantics conflict; this "
-                "round cannot support an answered Plan Agent stop."
+            "round cannot support an answered Plan Agent stop."
         )
-    planned_tool_evidence = _compact_planned_tool_evidence(observations)
+    if evidence["vqa"]["evidence_conflict"]:
+        limitations.append(
+            "VQA evidence conflicts with the recorded runtime evidence; this "
+            "round cannot support an answered Plan Agent stop."
+        )
+    planned_tool_evidence = deepcopy(evidence["rule"]["results"])
     tool_summary = (
         json.dumps(
             planned_tool_evidence,
@@ -395,19 +366,21 @@ def build_plan_agent_evidence_record(
         else "[]"
     )
     summary_text = (
-        f"EvidencePacket strength={strength}; "
-        f"authoritative_candidate_outcome={semantic_outcome}; "
+        f"RoundEvidence pipeline_passed={evidence['pipeline']['passed']}; "
+        f"candidate_outcome={semantic_outcome}; "
         f"success_predicate_metric={policy_outcome.get('metric')}; "
         f"success_predicate_value={policy_outcome.get('value')}; "
         f"success_predicate_authority={policy_outcome.get('authority')}; "
         f"success_predicate_semantics={outcome_semantics_status}; "
         f"policy_success_rate={success_rate}; "
-        f"Rule metric={packet['rule']['metric']}; "
-        f"VQA status={packet['vqa']['status']}; "
+        f"Rule status={evidence['rule']['status']}; "
+        f"Rule metric={evidence['rule']['metric']}; "
+        f"VQA status={evidence['vqa']['status']}; "
+        f"VQA evidence_conflict={evidence['vqa']['evidence_conflict']}; "
         "diagnostic_tool_role=supporting_measurement_not_success_authority; "
         f"diagnostic_tool_measurements={tool_summary}."
     )
-    scene_change = observations.get("scene_change")
+    scene_change = evidence["scene_change"]
     if (
         isinstance(scene_change, Mapping)
         and isinstance(scene_change.get("tracked_actor_changes"), list)
@@ -479,10 +452,16 @@ def build_plan_agent_evidence_record(
         else None
     )
     if candidate_outcome == "fail":
+        rule_metric = evidence["rule"]["metric"]
         diagnosis = (
             f"Observed policy success_rate={float(success_rate):.6g} for "
-            f"{candidate_id} with complete Rule metric "
-            f"{packet['rule']['metric']}; this localizes an observed weakness "
+            f"{candidate_id}"
+            + (
+                f" with Rule metric {rule_metric}"
+                if rule_metric is not None
+                else ""
+            )
+            + "; this localizes an observed weakness "
             "but does not establish a causal mechanism."
         )
     candidate = {
@@ -507,7 +486,7 @@ def build_plan_agent_evidence_record(
         "policy_sample_count": (
             0 if planning_observation is not None else None
         ),
-        "evidence_packet": packet,
+        "round_evidence": evidence,
         "evidence_refs": refs,
     }
 
@@ -589,6 +568,19 @@ def render_query_answer(
     semantic_conflicts = [
         item for item in outcome_semantics if item.get("status") == "conflict"
     ]
+    candidate_conflicts = [
+        record
+        for record in records
+        if isinstance(record.get("candidate_evidence"), Mapping)
+        and record["candidate_evidence"].get("outcome") == "conflict"
+    ]
+    vqa_conflicts = [
+        record
+        for record in records
+        if isinstance(record.get("round_evidence"), Mapping)
+        and isinstance(record["round_evidence"].get("vqa"), Mapping)
+        and record["round_evidence"]["vqa"].get("evidence_conflict") is True
+    ]
     semantic_extensions = [
         item
         for item in outcome_semantics
@@ -598,6 +590,15 @@ def render_query_answer(
         limitations.append(
             "At least one round has conflicting generated versus "
             "official/core success semantics."
+        )
+    if vqa_conflicts:
+        limitations.append(
+            "At least one round has VQA evidence that conflicts with its "
+            "recorded runtime evidence."
+        )
+    elif candidate_conflicts and not semantic_conflicts:
+        limitations.append(
+            "At least one round contains conflicting runtime evidence."
         )
     if semantic_extensions:
         limitations.append(
@@ -627,7 +628,7 @@ def render_query_answer(
         "evidence_refs": refs,
         "evaluation_outcomes": outcome_authorities,
         "outcome_semantics": outcome_semantics,
-        "evidence_conflict": bool(semantic_conflicts),
+        "evidence_conflict": bool(semantic_conflicts or candidate_conflicts),
     }
 
 

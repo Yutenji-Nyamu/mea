@@ -40,6 +40,15 @@ The first tested concern may come directly from a no-control Query. When the
 Query requires a baseline, run only the unchanged official control first; do
 not freeze a later concern before control evidence exists.
 
+A failed or invalid control is evidence, not a forced stop. While budget
+remains, either retry the unchanged official task on the runtime-owned same
+seed, or propose a diagnostic that changes the checker or Tool without treating
+it as property evidence. An unchanged official retry requests no scene,
+checker, Rule Tool, or VQA Tool and sets `controlled_changes=[]`. Only a valid
+unchanged official success can support a `supported` or `refuted` answer;
+otherwise the Agent may continue, stop inconclusively, or reach the external
+round cap.
+
 After each completed round:
 
 1. consume the complete Rule/VQA/Aggregate evidence from completed rounds;
@@ -104,7 +113,9 @@ If the original Query explicitly requires a checker for every generated round,
 scene-only is not a valid fallback; choose another observable relation or stop
 and state the unsupported limitation.
 
-For each continued round, state one explicit bounded scene delta. An independent
+For each continued round that changes the scene, state one explicit bounded
+scene delta. A same-seed unchanged official retry instead uses
+`controlled_changes=[]` and requests no generated artifact. An independent
 official-base concern may let TaskGen choose a source-supported bounded magnitude;
 later refinements must use the numeric value reported by completed simulator
 evidence. The runtime binding already fixes task identity and policy checkpoint;

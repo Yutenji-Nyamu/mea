@@ -10,7 +10,6 @@ semantic roles, success thresholds, or simulator state.
 from __future__ import annotations
 
 import ast
-import hashlib
 import importlib
 import re
 from copy import deepcopy
@@ -33,6 +32,7 @@ class RoboTwinTaskContextError(RuntimeError):
 
 
 _TASK_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
+_ACTOR_PATH_PREFIX = "actor_path_"
 _PROBE_KEYS = {
     "schema_version",
     "task_name",
@@ -182,37 +182,40 @@ def _source_facts(
 
 
 def _actor_id_from_access_path(path: list[dict[str, Any]]) -> str:
-    """Derive a stable telemetry id from a validated structured path."""
+    """Encode a structured actor path as a reversible telemetry id."""
 
-    key = actor_access_path_key({"access_path": path})
-    root = str(path[0]["attribute"])
-    if len(path) == 1 and _TASK_NAME.fullmatch(root):
+    normalized = actor_access_path({"access_path": path})
+    root = str(normalized[0]["attribute"])
+    if (
+        len(normalized) == 1
+        and _TASK_NAME.fullmatch(root)
+        and not root.startswith(_ACTOR_PATH_PREFIX)
+    ):
         return root
-    parts = [root] if _TASK_NAME.fullmatch(root) else ["actor"]
-    for segment in path[1:]:
+
+    def text_parts(value: str) -> list[str]:
+        if _TASK_NAME.fullmatch(value):
+            return ["name", str(len(value)), value]
+        encoded = value.encode("utf-8")
+        return ["utf8", str(len(encoded)), encoded.hex()]
+
+    parts = ["actor", "path", "attribute", *text_parts(root)]
+    for segment in normalized[1:]:
         operation, operand = next(iter(segment.items()))
         if operation == "index":
             parts.extend(("index", str(operand)))
         elif isinstance(operand, int):
-            encoded = (
-                str(operand)
-                if operand >= 0
-                else f"negative_{abs(operand)}"
+            parts.extend(
+                (
+                    "key",
+                    "integer",
+                    "nonnegative" if operand >= 0 else "negative",
+                    str(abs(operand)),
+                )
             )
-            parts.extend(("key", "int", encoded))
-        elif _TASK_NAME.fullmatch(operand):
-            parts.extend(("key", "str", operand))
         else:
-            digest = hashlib.sha256(operand.encode("utf-8")).hexdigest()[:12]
-            parts.extend(("key", "str", digest))
-    candidate = "_".join(parts)
-    if _TASK_NAME.fullmatch(candidate):
-        return (
-            candidate
-            + "_path_"
-            + hashlib.sha256(key.encode("utf-8")).hexdigest()[:12]
-        )
-    return "actor_" + hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+            parts.extend(("key", "string", *text_parts(operand)))
+    return "_".join(parts)
 
 
 def _container_actor_paths(

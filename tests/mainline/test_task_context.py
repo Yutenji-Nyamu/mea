@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
 from mea.robotwin_task_context import (
     RoboTwinTaskContextError,
+    _actor_id_from_access_path,
     build_runtime_task_context_probe,
     resolve_robotwin_task_context,
 )
@@ -271,12 +273,16 @@ def test_live_probe_discovers_nested_builtin_actor_containers(
         actor["id"] for actor in context.task_schema["tracked_actors"]
     ]
     assert len(set(actor_ids)) == 2
-    assert actor_ids[0].startswith(
-        "actor_groups_key_str_targets_index_0_index_0_path_"
-    )
-    assert actor_ids[1].startswith(
-        "actor_groups_key_str_targets_index_0_index_1_path_"
-    )
+    assert actor_ids == [
+        (
+            "actor_path_attribute_name_12_actor_groups_"
+            "key_string_name_7_targets_index_0_index_0"
+        ),
+        (
+            "actor_path_attribute_name_12_actor_groups_"
+            "key_string_name_7_targets_index_0_index_1"
+        ),
+    ]
     assert all(
         "task_attribute" not in actor
         for actor in context.task_schema["tracked_actors"]
@@ -290,4 +296,32 @@ def test_live_probe_discovers_nested_builtin_actor_containers(
     )
     assert (
         'self.actor_groups["targets"][0][0].get_pose().p' in guide
+    )
+
+
+def test_actor_path_id_encoding_preserves_typed_path_identity() -> None:
+    paths = [
+        [{"attribute": "target"}],
+        [{"attribute": "actor_path_target"}],
+        [{"attribute": "actor"}, {"key": 1}],
+        [{"attribute": "actor"}, {"key": "1"}],
+        [{"attribute": "actor"}, {"key": "目标"}],
+    ]
+
+    actor_ids = [_actor_id_from_access_path(path) for path in paths]
+
+    assert actor_ids == [
+        "target",
+        "actor_path_attribute_name_17_actor_path_target",
+        "actor_path_attribute_name_5_actor_key_integer_nonnegative_1",
+        "actor_path_attribute_name_5_actor_key_string_utf8_1_31",
+        (
+            "actor_path_attribute_name_5_actor_"
+            "key_string_utf8_6_e79baee6a087"
+        ),
+    ]
+    assert len(actor_ids) == len(set(actor_ids))
+    assert all(
+        re.fullmatch(r"[a-z][a-z0-9_]*", actor_id)
+        for actor_id in actor_ids
     )

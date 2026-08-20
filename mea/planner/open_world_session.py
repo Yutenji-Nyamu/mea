@@ -1,11 +1,9 @@
 """Frozen execution transport for one Plan Agent policy binding.
 
-The legacy :class:`BoundTaskPlanSession` is intentionally a finite catalog
-protocol.  The public production owner is :class:`PlanAgentSession`; this
-module only validates and transports its executable plan state after runtime
-binding has selected one policy-ready base task.  Later rounds carry
-Query-derived Proposals rather than requiring an aspect or template
-registration.
+The public production owner is :class:`PlanAgentSession`; this module only
+validates and transports its executable plan state after runtime binding has
+selected one policy-ready base task. Later rounds carry Query-derived
+Proposals rather than requiring an aspect or template registration.
 
 The transport freezes task, policy, checkpoint, and total rollout budget.  Its
 Runtime limits record whether an official control round is required.  They do
@@ -34,7 +32,6 @@ from .runtime_limits import (
 )
 from .policy_task_binding import (
     PolicyTaskBindingError,
-    build_policy_task_binding,
     policy_task_binding_from_target,
 )
 
@@ -63,15 +60,6 @@ def _positive_int(value: Any, field: str) -> int:
     return value
 
 
-def _catalog_templates(task: Mapping[str, Any]) -> set[str]:
-    return {
-        str(template_id)
-        for aspect in task.get("aspects", [])
-        if isinstance(aspect, Mapping)
-        for template_id in aspect.get("template_ids", [])
-    }
-
-
 def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     """Project legacy capability contracts into non-authoritative hints."""
 
@@ -98,60 +86,13 @@ def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
     return [deepcopy(grouped[key]) for key in sorted(grouped)]
 
 
-def build_open_world_evaluation_target(
-    catalog: Mapping[str, Any],
-    task_name: str,
-    *,
-    max_rounds: int,
-    task_module: str | None = None,
-) -> dict[str, Any]:
-    """Freeze only the policy/task execution boundary and runtime budget.
-
-    The catalog is a compatibility discovery input here.  Planner kinds,
-    profiles, catalog round caps, aspects, and templates are intentionally not
-    copied into the production target.
-    """
-
-    from .catalog import catalog_task, validate_act_catalog
-
-    trusted_catalog = validate_act_catalog(catalog)
-    task = catalog_task(trusted_catalog, _text(task_name, "task_name"))
-    budget = _positive_int(max_rounds, "max_rounds")
-    retrieval_index = resolve_task_retrieval_index(
-        task["task_name"],
-        allow_unregistered=True,
-    )
-    control_template = _text(
-        retrieval_index.get("control_template_id"),
-        "TaskRetrievalIndex.control_template_id",
-    )
-    if control_template not in _catalog_templates(task):
-        raise OpenWorldSessionError(
-            "the TaskAdapter control template is absent from the retrieval catalog"
-        )
-    return {
-        "schema_version": 3,
-        "binding_mode": "single_task_single_checkpoint_open_world",
-        "policy_task_binding": build_policy_task_binding(
-            task_name=task["task_name"],
-            task_family=task["task_family"],
-            policy=trusted_catalog["policy"],
-            checkpoint=task["checkpoint"],
-            task_module=task_module,
-        ),
-        "max_rounds": budget,
-    }
-
-
 def validate_open_world_evaluation_target(
     value: Mapping[str, Any],
-    catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate a frozen runtime target.
 
-    The production Plan Agent path validates the bound target directly;
-    the catalog is only needed while task/checkpoint discovery builds the
-    frozen target. Runtime candidates are never admitted by catalog membership.
+    Task/checkpoint discovery is owned by ``runtime_task_binding``. Runtime
+    candidates are never admitted by catalog membership.
     """
 
     if not isinstance(value, Mapping):
@@ -176,23 +117,10 @@ def validate_open_world_evaluation_target(
         binding = policy_task_binding_from_target(target)
     except (PolicyTaskBindingError, TypeError) as exc:
         raise OpenWorldSessionError(str(exc)) from exc
-    task_name = binding["task_name"]
     target["policy_task_binding"] = binding
     target["max_rounds"] = _positive_int(
         target.get("max_rounds"), "target.max_rounds"
     )
-    if catalog is None:
-        return target
-    expected = build_open_world_evaluation_target(
-        catalog,
-        task_name,
-        max_rounds=target["max_rounds"],
-        task_module=binding["task_module"],
-    )
-    if target != expected:
-        raise OpenWorldSessionError(
-            "OpenWorldEvaluationTarget differs from the ready ACT catalog"
-        )
     return target
 
 
@@ -201,21 +129,12 @@ class _FrozenExecutionTransport:
 
     def __init__(
         self,
-        catalog: Mapping[str, Any] | None,
         target: Mapping[str, Any],
         *,
         control_round: Mapping[str, Any] | None = None,
         runtime_limits: Mapping[str, Any] | None = None,
     ):
-        if catalog is not None:
-            from .catalog import validate_act_catalog
-
-            self.catalog = validate_act_catalog(catalog)
-        else:
-            self.catalog = None
-        self.target = validate_open_world_evaluation_target(
-            target, self.catalog
-        )
+        self.target = validate_open_world_evaluation_target(target)
         self.binding = policy_task_binding_from_target(self.target)
         self.task_name = self.binding["task_name"]
         self.policy = self.binding["policy"]
@@ -252,7 +171,6 @@ class _FrozenExecutionTransport:
         """
 
         return cls(
-            None,
             target,
             control_round=control_round,
             runtime_limits=runtime_limits,
@@ -549,20 +467,55 @@ class _FrozenExecutionTransport:
             ) from exc
 
     @staticmethod
+    def _is_unchanged_official_retry(
+        round_plan: Mapping[str, Any],
+    ) -> bool:
+        if round_plan.get("route") != "official":
+            return False
+        proposal = round_plan.get("proposal") or round_plan.get(
+            "experiment_candidate"
+        )
+        return bool(
+            isinstance(proposal, Mapping)
+            and all(
+                proposal.get(field) is None
+                for field in (
+                    "scene_need",
+                    "checker_need",
+                    "rule_tool_need",
+                    "vqa_tool_need",
+                    "tool_need",
+                )
+            )
+        )
+
+    @classmethod
     def _policy_candidate_evidence_from_history(
+        cls,
+        round_plans: Iterable[Mapping[str, Any]],
         observation_history: Iterable[Mapping[str, Any]],
         *,
         control_required: bool,
     ) -> list[dict[str, Any]]:
         """Return evidence charged to the post-control candidate budget."""
 
+        plans = list(round_plans)
+        observations_history = list(observation_history)
+        if len(plans) != len(observations_history):
+            raise OpenWorldSessionError(
+                "round plans and observation history must be aligned"
+            )
         result: list[dict[str, Any]] = []
-        for index, observation in enumerate(observation_history):
+        for index, (round_plan, observation) in enumerate(
+            zip(plans, observations_history)
+        ):
             if not isinstance(observation, Mapping):
                 raise OpenWorldSessionError(
                     "observation history items must be objects"
                 )
             if control_required and index == 0:
+                continue
+            if cls._is_unchanged_official_retry(round_plan):
                 continue
             observations = observation.get("observations")
             if (
@@ -577,19 +530,32 @@ class _FrozenExecutionTransport:
                 result.append(deepcopy(dict(value)))
         return result
 
-    @staticmethod
+    @classmethod
     def _completed_policy_candidate_rounds(
+        cls,
+        round_plans: Iterable[Mapping[str, Any]],
         observation_history: Iterable[Mapping[str, Any]],
         *,
         control_required: bool,
     ) -> int:
+        plans = list(round_plans)
+        observations_history = list(observation_history)
+        if len(plans) != len(observations_history):
+            raise OpenWorldSessionError(
+                "round plans and observation history must be aligned"
+            )
         completed = 0
-        for index, observation in enumerate(observation_history):
+        for index, (round_plan, observation) in enumerate(
+            zip(plans, observations_history)
+        ):
             if not isinstance(observation, Mapping):
                 raise OpenWorldSessionError(
                     "observation history items must be objects"
                 )
             if control_required and index == 0:
+                continue
+            if cls._is_unchanged_official_retry(round_plan):
+                completed += 1
                 continue
             observations = observation.get("observations")
             if (
@@ -636,11 +602,13 @@ class _FrozenExecutionTransport:
         if isinstance(contract, Mapping):
             control_required = self._control_required(contract)
             evidence = self._policy_candidate_evidence_from_history(
+                current["rounds"],
                 observation_history,
                 control_required=control_required,
             )
             completed_candidate_rounds = (
                 self._completed_policy_candidate_rounds(
+                    current["rounds"],
                     observation_history,
                     control_required=control_required,
                 )
@@ -793,11 +761,13 @@ class _FrozenExecutionTransport:
                 normalized["runtime_limits"]
             )
             candidate_evidence = self._policy_candidate_evidence_from_history(
+                normalized["rounds"][: len(history)],
                 history,
                 control_required=control_required,
             )
             completed_candidate_rounds = (
                 self._completed_policy_candidate_rounds(
+                    normalized["rounds"][: len(history)],
                     history,
                     control_required=control_required,
                 )
@@ -846,6 +816,5 @@ OpenWorldPlanSession = _FrozenExecutionTransport
 
 __all__ = [
     "OpenWorldSessionError",
-    "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",
 ]

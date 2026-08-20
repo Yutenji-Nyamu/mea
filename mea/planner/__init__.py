@@ -1,9 +1,6 @@
-"""Outer planning API with legacy planners loaded only on explicit use."""
+"""Public planning API for the production Plan Agent."""
 
 from __future__ import annotations
-
-from importlib import import_module
-from typing import Any
 
 from mea.evaluation_identity import make_evaluation_id
 
@@ -13,13 +10,9 @@ from .context import (
     validate_planning_context,
 )
 from .evidence_policy import (
-    EvidencePacketError,
-    assess_conditional_transition,
-    assess_evidence,
-    build_evidence_aggregate,
-    build_evidence_packet,
-    validate_evidence_aggregate,
-    validate_evidence_packet,
+    RoundEvidenceError,
+    build_round_evidence,
+    validate_round_evidence,
 )
 from .runtime_limits import (
     OUTCOMES,
@@ -78,7 +71,6 @@ from .open_task_resolver import (
 )
 from .open_world_session import (
     OpenWorldSessionError,
-    build_open_world_evaluation_target,
     validate_open_world_evaluation_target,
 )
 from .policy_task_binding import (
@@ -89,141 +81,14 @@ from .policy_task_binding import (
 )
 
 
-# These task-specific and catalog planners are compatibility/paper protocols.
-# Preserve the public import API while keeping normal Plan Agent imports free of
-# their modules and construction side effects.
-_LEGACY_EXPORTS = {
-    "BLUE_TASK_INSTRUCTION": (".prototype", "BLUE_TASK_INSTRUCTION"),
-    "MAX_ROUNDS": (".prototype", "MAX_ROUNDS"),
-    "POSITION_TASK_INSTRUCTION": (".prototype", "POSITION_TASK_INSTRUCTION"),
-    "SCALE_TASK_INSTRUCTION": (".prototype", "SCALE_TASK_INSTRUCTION"),
-    "SAFETY_TASK_INSTRUCTION": (".prototype", "SAFETY_TASK_INSTRUCTION"),
-    "SUB_ASPECT_CATALOG": (".prototype", "SUB_ASPECT_CATALOG"),
-    "TIMING_TASK_INSTRUCTION": (".prototype", "TIMING_TASK_INSTRUCTION"),
-    "PlanAgentError": (".prototype", "PlanAgentError"),
-    "PlanAgentPrototype": (".prototype", "PlanAgentPrototype"),
-    "validate_evaluation_plan": (".prototype", "validate_evaluation_plan"),
-    "validate_next_round_decision": (".prototype", "validate_next_round_decision"),
-    "ACTCatalogError": (".catalog", "ACTCatalogError"),
-    "ACT_ROUTE_TASKS": (".catalog", "ACT_ROUTE_TASKS"),
-    "build_act_catalog": (".catalog", "build_act_catalog"),
-    "catalog_task": (".catalog", "catalog_task"),
-    "validate_act_catalog": (".catalog", "validate_act_catalog"),
-    "GlobalQueryRouter": (".global_query", "GlobalQueryRouter"),
-    "GlobalRouteError": (".global_query", "GlobalRouteError"),
-    "build_global_route_prompt": (".global_query", "build_global_route_prompt"),
-    "route_to_bbh_proposal": (".global_query", "route_to_bbh_proposal"),
-    "route_to_click_proposal": (".global_query", "route_to_click_proposal"),
-    "route_to_official_proposal": (".global_query", "route_to_official_proposal"),
-    "route_to_planner_proposal": (".global_query", "route_to_planner_proposal"),
-    "validate_route_selection": (".global_query", "validate_route_selection"),
-    "BoundTaskPlanSession": (".session", "BoundTaskPlanSession"),
-    "PlanSessionError": (".session", "PlanSessionError"),
-    "build_adaptive_directive": (".session", "build_adaptive_directive"),
-    "build_evaluation_target": (".session", "build_evaluation_target"),
-    "validate_adaptive_choice": (".session", "validate_adaptive_choice"),
-    "validate_evaluation_target": (".session", "validate_evaluation_target"),
-    "AdaptivePlanStepAgent": (".adaptive_step", "AdaptivePlanStepAgent"),
-    "AdaptiveStepError": (".adaptive_step", "AdaptiveStepError"),
-    "validate_plan_step_proposal": (".adaptive_step", "validate_plan_step_proposal"),
-    "OFFICIAL_GATES": (".official", "OFFICIAL_GATES"),
-    "OFFICIAL_TEMPLATE_ID": (".official", "OFFICIAL_TEMPLATE_ID"),
-    "OfficialTaskPlanAgent": (".official", "OfficialTaskPlanAgent"),
-    "CLICK_BELL_ADAPTIVE_ASPECTS": (
-        ".click_bell_catalog",
-        "CLICK_BELL_ADAPTIVE_ASPECTS",
-    ),
-    "CLICK_BELL_ADAPTIVE_TEMPLATES": (
-        ".click_bell_catalog",
-        "CLICK_BELL_ADAPTIVE_TEMPLATES",
-    ),
-    "CLICK_BELL_POSITIONS": (".click_bell_catalog", "CLICK_BELL_POSITIONS"),
-    "CLICK_BELL_TEMPLATE_IDS": (".click_bell_catalog", "CLICK_BELL_TEMPLATE_IDS"),
-    "ClickBellAdaptivePlanAgent": (".click_bell", "ClickBellAdaptivePlanAgent"),
-    "ClickBellFixedSuitePlanAgent": (".click_bell", "ClickBellFixedSuitePlanAgent"),
-    "ClickBellPositionPlanAgent": (".click_bell", "ClickBellPositionPlanAgent"),
-    "CATALOG_PLAN_TASKS": (".catalog_plan", "CATALOG_PLAN_TASKS"),
-    "CatalogPlanAgent": (".catalog_plan", "CatalogPlanAgent"),
-    "CatalogPlanError": (".catalog_plan", "CatalogPlanError"),
-    "PlanMaterializer": (".catalog_plan", "PlanMaterializer"),
-}
-
-
-def __getattr__(name: str) -> Any:
-    """Resolve compatibility planner exports only when explicitly requested."""
-
-    target = _LEGACY_EXPORTS.get(name)
-    if target is None:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-    module_name, attribute_name = target
-    value = getattr(import_module(module_name, __name__), attribute_name)
-    globals()[name] = value
-    return value
-
-
-def __dir__() -> list[str]:
-    return sorted(set(globals()) | set(_LEGACY_EXPORTS))
-
-
 __all__ = [
-    "BLUE_TASK_INSTRUCTION",
-    "MAX_ROUNDS",
-    "POSITION_TASK_INSTRUCTION",
-    "SCALE_TASK_INSTRUCTION",
-    "SAFETY_TASK_INSTRUCTION",
-    "SUB_ASPECT_CATALOG",
-    "TIMING_TASK_INSTRUCTION",
-    "assess_evidence",
-    "assess_conditional_transition",
-    "EvidencePacketError",
-    "build_evidence_aggregate",
-    "build_evidence_packet",
-    "validate_evidence_aggregate",
-    "validate_evidence_packet",
+    "RoundEvidenceError",
+    "build_round_evidence",
+    "validate_round_evidence",
     "PlanningContextError",
     "build_planning_context",
     "validate_planning_context",
-    "PlanAgentError",
-    "PlanAgentPrototype",
     "make_evaluation_id",
-    "validate_evaluation_plan",
-    "validate_next_round_decision",
-    "OFFICIAL_GATES",
-    "OFFICIAL_TEMPLATE_ID",
-    "OfficialTaskPlanAgent",
-    "CLICK_BELL_POSITIONS",
-    "CLICK_BELL_TEMPLATE_IDS",
-    "CLICK_BELL_ADAPTIVE_ASPECTS",
-    "CLICK_BELL_ADAPTIVE_TEMPLATES",
-    "ClickBellAdaptivePlanAgent",
-    "ClickBellFixedSuitePlanAgent",
-    "ClickBellPositionPlanAgent",
-    "ACTCatalogError",
-    "ACT_ROUTE_TASKS",
-    "build_act_catalog",
-    "catalog_task",
-    "validate_act_catalog",
-    "CATALOG_PLAN_TASKS",
-    "CatalogPlanAgent",
-    "CatalogPlanError",
-    "PlanMaterializer",
-    "GlobalQueryRouter",
-    "GlobalRouteError",
-    "build_global_route_prompt",
-    "route_to_bbh_proposal",
-    "route_to_click_proposal",
-    "route_to_official_proposal",
-    "route_to_planner_proposal",
-    "validate_route_selection",
-    "BoundTaskPlanSession",
-    "PlanSessionError",
-    "build_adaptive_directive",
-    "build_evaluation_target",
-    "validate_adaptive_choice",
-    "validate_evaluation_target",
-    "AdaptivePlanStepAgent",
-    "AdaptiveStepError",
-    "validate_plan_step_proposal",
     "OUTCOMES",
     "PlanRuntimeError",
     "build_plan_runtime_limits",
@@ -260,7 +125,6 @@ __all__ = [
     "discover_robotwin_task_inventory",
     "resolve_open_task",
     "OpenWorldSessionError",
-    "build_open_world_evaluation_target",
     "validate_open_world_evaluation_target",
     "PolicyTaskBindingError",
     "build_policy_task_binding",

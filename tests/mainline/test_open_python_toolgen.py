@@ -71,19 +71,6 @@ DERIVED_SOURCE = """def generated_tool(trajectory):
         },
     }
 """
-DERIVED_REVIEW = """{
-  "schema_version": 1,
-  "status": "approved",
-  "checks": {
-    "implements_metric_description": true,
-    "uses_only_declared_signals": true,
-    "preserves_requested_unit": true,
-    "returns_diagnostic_not_success": true
-  },
-  "reason": "The implementation matches the declared trajectory metric."
-}"""
-
-
 def peak_hammer_motion_oracle(trajectory):
     positions = np.asarray(trajectory.trace["hammer_position"], dtype=float)
     physics = np.asarray(trajectory.trace["physics_step"], dtype=int)
@@ -188,7 +175,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
 """
             )
 
-    def test_orchestration_labels_semantic_review_without_numeric_oracle(self):
+    def test_orchestration_labels_runtime_validation_without_numeric_oracle(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             child = root / "generated_tasks/round_1"
@@ -221,9 +208,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
                     "question": "Where does hammer motion peak?",
                     "metric_spec": DERIVED_SPEC,
                 },
-                provider=SequencedProvider(
-                    [f"```python\n{DERIVED_SOURCE}\n```", DERIVED_REVIEW]
-                ),
+                provider=SequencedProvider([f"```python\n{DERIVED_SOURCE}\n```"]),
                 model="test-model",
             )
 
@@ -354,7 +339,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
             self.assertTrue(raw["episodes"][0]["oracle_agreement"])
             self.assertTrue(raw["episodes"][0]["artifacts_unchanged"])
 
-    def test_derived_observable_uses_semantic_review_then_exact_reuse(self):
+    def test_derived_observable_uses_runtime_gates_then_exact_reuse(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             episode = root / "episode"
@@ -363,9 +348,7 @@ class OpenPythonToolGenTests(unittest.TestCase):
                 policy_name="SmolVLA",
                 physical_contact=False,
             )
-            provider = SequencedProvider(
-                [f"```python\n{DERIVED_SOURCE}\n```", DERIVED_REVIEW]
-            )
+            provider = SequencedProvider([f"```python\n{DERIVED_SOURCE}\n```"])
             registry = root / "registry"
             generated = execute_metric_spec(
                 task_name="beat_block_hammer",
@@ -380,12 +363,20 @@ class OpenPythonToolGenTests(unittest.TestCase):
             )
             self.assertEqual(
                 generated["validation_authority"],
-                "toolgen_semantic_review_runtime",
+                "toolgen_runtime_validation",
             )
-            self.assertEqual(provider.calls, 2)
-            self.assertEqual(
-                generated["semantic_review"]["status"],
-                "approved",
+            self.assertEqual(provider.calls, 1)
+            self.assertIn("directly and exactly", provider.prompts[0])
+            self.assertIn("declared telemetry signals", provider.prompts[0])
+            self.assertIn("preserve the requested unit", provider.prompts[0])
+            self.assertIn("return passed=None", provider.prompts[0])
+            self.assertIn("success or reward", provider.prompts[0])
+            self.assertNotIn("semantic_review", generated)
+            self.assertNotIn(
+                "semantic_review",
+                json.loads((registry / "index.json").read_text(encoding="utf-8"))[
+                    "entries"
+                ][0],
             )
             self.assertIsNone(
                 generated["episodes"][0]["oracle_agreement"]

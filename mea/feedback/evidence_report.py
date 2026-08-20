@@ -104,7 +104,7 @@ def write_evidence_report(
     query = (
         session.get("user_query")
         or manifest.get("user_request")
-        or evidence.get("user_request")
+        or evidence.get("query")
         or "N/A"
     )
     raw_target = (

@@ -38,16 +38,20 @@
   `self.mea_official_check_success()` and combine its boolean result with the
   added directly observable condition. Never replace that official conjunct
   with a correlated proxy.
+- Implement every `checker_need` requirement directly in `check_success()`.
+- Preserve all quantifiers, simultaneity, temporal relations, object identities,
+  and corresponding-pair relations literally.
+- Derive every checker condition from direct current simulator observables
+  supplied by the TaskContext, TaskSchema, or retrieved official source.
+- Never substitute a correlated proxy. If the exact requested predicate is not
+  available from current simulator state, leave the candidate unsupported
+  instead of weakening or reinterpreting the Proposal.
 - Every added checker conjunct must be false initially and true in the supplied
   official-expert terminal state. Do not require instantaneous PhysX contact
   when the official terminal state may release contact; use the repair
   evidence's current actor state or another Proposal-consistent predicate.
-- Implement the exact checker relation in the Proposal. Never replace it with
-  a correlated proxy: gripper closure is not target contact, height is not
-  placement, and sequential events are not simultaneous events. If the exact
-  predicate is unavailable from current simulator state or cannot pass the
-  supplied expert fixture, leave the candidate rejected/unsupported rather
-  than weakening its semantics during repair.
+- Gripper closure is not target contact, height is not placement, and sequential
+  events are not simultaneous events.
 - `check_success()` reads current simulator state only. Trajectory deviation,
   smoothness, jerk, path length, and rollout clearance belong to ToolGen.
 - A generated challenge must preserve at least one feasible official action

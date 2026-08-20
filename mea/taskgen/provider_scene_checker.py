@@ -420,12 +420,6 @@ def run_provider_codegen(
             and diagnosis
             and previous_methods is not None
         )
-        semantic_review_repair = bool(
-            checker_only_repair
-            and diagnosis.startswith(
-                "generated checker failed semantic review"
-            )
-        )
         scene_or_expert_repair = bool(
             requested_action is not None
             and diagnosis
@@ -446,23 +440,10 @@ def run_provider_codegen(
                     "changing the scene would invalidate a checker-local "
                     "repair. "
                 )
-                if semantic_review_repair:
-                    current_prompt += (
-                        "The scene has passed the static method contract, but "
-                        "simulator preflight remains pending because the "
-                        "independent semantic review rejected the checker. "
-                        "Implement the exact checker_need; do not substitute "
-                        "a correlated proxy such as gripper closure for "
-                        "contact, height for placement, or sequential events "
-                        "for a simultaneous relation. If the exact requested "
-                        "predicate is unavailable, keep it unsupported rather "
-                        "than weakening the Proposal. "
-                    )
-                else:
-                    current_prompt += (
-                        "The previous load_actors method already passed the "
-                        "same-seed simulator setup and render gates. "
-                    )
+                current_prompt += (
+                    "The previous load_actors method already passed the "
+                    "same-seed simulator setup and render gates. "
+                )
                 current_prompt += (
                     "The repaired checker must differ from the "
                     "failing checker and make every supplied simulator "
@@ -545,11 +526,7 @@ def run_provider_codegen(
                         ),
                         "provider_scene_output_ignored": provider_changed_scene,
                         "authority": (
-                            "previous_static_method_contract"
-                            if semantic_review_repair
-                            else (
-                                "previous_same_seed_simulator_setup_and_render"
-                            )
+                            "previous_same_seed_simulator_setup_and_render"
                         ),
                     },
                 )
@@ -570,12 +547,8 @@ def run_provider_codegen(
                     "generated checker failed live negative/positive fixtures",
                     "generated checker failed live execution",
                     "generated checker contradicts TaskSchema success contract",
-                    "generated checker failed semantic review",
                     "generated checker repair repeated the failing checker",
                 )
-            )
-            semantic_review_unavailable = diagnosis.startswith(
-                "TaskGen checker semantic review unavailable"
             )
             official_baseline_failure = diagnosis.startswith(
                 "official same-seed expert baseline is unavailable"
@@ -590,24 +563,13 @@ def run_provider_codegen(
             failure_runtime = {"provider_calls": 1}
             error_runtime = getattr(exc, "runtime", {})
             if isinstance(error_runtime, Mapping):
-                review_calls = error_runtime.get(
-                    "semantic_review_provider_calls"
-                )
-                if (
-                    isinstance(review_calls, int)
-                    and not isinstance(review_calls, bool)
-                    and review_calls > 0
-                ):
-                    failure_runtime["provider_calls"] += review_calls
                 for field in ("simulator_probes", "expert_probes"):
                     value = error_runtime.get(field)
                     if isinstance(value, int) and not isinstance(value, bool):
                         failure_runtime[field] = value
             raise TaskGenerationStageError(
                 (
-                    "semantic_review"
-                    if semantic_review_unavailable
-                    else "expert_gate"
+                    "expert_gate"
                     if official_baseline_failure or candidate_unexecutable
                     else "preservation_validation"
                     if preservation_validation_failure
@@ -616,9 +578,7 @@ def run_provider_codegen(
                     else "scene_codegen"
                 ),
                 (
-                    "unavailable"
-                    if semantic_review_unavailable
-                    else "official_baseline_unsolvable"
+                    "official_baseline_unsolvable"
                     if official_baseline_failure
                     else "candidate_unexecutable"
                     if candidate_unexecutable
@@ -641,16 +601,7 @@ def run_provider_codegen(
             }
         )
         _write_json(attempt_dir / "static_validation.json", validation)
-        review_calls = validation.get("semantic_review_provider_calls", 0)
-        if (
-            isinstance(review_calls, bool)
-            or not isinstance(review_calls, int)
-            or review_calls < 0
-        ):
-            raise error_type(
-                "semantic_review_provider_calls must be a non-negative integer"
-            )
-        runtime = {"provider_calls": 1 + review_calls}
+        runtime = {"provider_calls": 1}
         preflight = validation.get("preflight")
         if isinstance(preflight, Mapping):
             for field in ("simulator_probes", "expert_probes"):
@@ -739,39 +690,6 @@ def write_candidate_artifacts(
     )
     _write_json(root / "checker_fixtures.json", fixtures)
     generation_result = dict(generated["generation_result"])
-    checker_semantic_review = validation.get("checker_semantic_review")
-    if isinstance(checker_semantic_review, Mapping):
-        checker_semantic_review = dict(checker_semantic_review)
-        _write_json(
-            root / "checker_semantic_review.json",
-            checker_semantic_review,
-        )
-        review_attempt = (
-            Path(str(generated["attempt_root"]))
-            / ("repair" if generation_result.get("repair") else "generation")
-        )
-        for source_name, destination_name in (
-            (
-                "checker_semantic_review_prompt.md",
-                "checker_semantic_review_prompt.md",
-            ),
-            (
-                "checker_semantic_review_response.txt",
-                "checker_semantic_review_response.txt",
-            ),
-        ):
-            source = review_attempt / source_name
-            if not source.is_file():
-                raise ValueError(
-                    "accepted generated checker lacks semantic-review "
-                    f"artifact: {source_name}"
-                )
-            (root / destination_name).write_text(
-                source.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-    elif checker_semantic_review is not None:
-        raise ValueError("checker_semantic_review must be an object or null")
     if compatibility_attempt_directory:
         _write_compatibility_attempts(
             root / "provider_attempts",
@@ -825,7 +743,6 @@ def write_candidate_artifacts(
             "prompt_components": dict(prompt_context["components"]),
             "readme_agent_ref": prompt_context["readme_agent_ref"],
         },
-        "checker_semantic_review": checker_semantic_review,
         "checker_contract": {
             **dict(checker_contract),
             "metric": metric,

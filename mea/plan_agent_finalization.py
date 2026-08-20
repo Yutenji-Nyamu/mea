@@ -8,7 +8,8 @@ from typing import Any, Mapping
 
 from mea.agent_evidence import build_evidence_bundle, compact_aggregate_result
 from mea.feedback import (
-    PlanAgentFinalSummary,
+    answer_markdown,
+    build_scoped_plan_agent_answer,
     render_evaluation_report,
     write_evidence_report,
 )
@@ -89,11 +90,12 @@ class PlanAgentFinalizationMixin:
             if query_answer is not None
             else None
         )
+        final_assessment = deepcopy(dict(runtime_state["assessment"]))
         if final_query_answer is None:
-            externally_stopped_assessment = {
-                **runtime_state["assessment"],
+            final_assessment = {
+                **final_assessment,
                 "should_stop": True,
-                "stop_reason": "external_hard_round_cap",
+                "stop_reason": "budget_exhausted",
                 "evidence_sufficient": False,
                 "claim_verdict": "inconclusive",
                 "rationale": (
@@ -103,9 +105,12 @@ class PlanAgentFinalizationMixin:
             }
             final_query_answer = render_query_answer(
                 self.user_request,
-                externally_stopped_assessment,
+                final_assessment,
                 runtime_state["records"],
-                baseline_valid=bool(runtime_state["control_passed"]),
+                baseline_valid=bool(
+                    runtime_state.get("control_required") is not True
+                    or runtime_state.get("control_passed") is True
+                ),
             )
             _write_json(
                 self.evaluation_dir
@@ -116,7 +121,7 @@ class PlanAgentFinalizationMixin:
         evidence["plan_agent_session"] = {
             "schema_version": 1,
             "runtime_limits": runtime_state["runtime_limits"],
-            "assessment": runtime_state["assessment"],
+            "assessment": final_assessment,
             "query_answer": final_query_answer,
             "records": runtime_state["records"],
             "artifacts": {
@@ -138,19 +143,22 @@ class PlanAgentFinalizationMixin:
         )
         update_manifest(
             self.evaluation_dir,
-            status="generating_answer",
+            status="finalizing_answer",
             summary_path="summary/summary.json",
             aggregate_path="summary/aggregate_result.json",
             evidence_path="summary/evidence_bundle.json",
             summary=summary,
         )
-        feedback = PlanAgentFinalSummary(
-            self.repo_root,
-            self.provider,
-            model=self.models["feedback"],
-        ).generate(
+        feedback = build_scoped_plan_agent_answer(
             evidence,
-            output_dir=self.evaluation_dir / "answer",
+            final_query_answer,
+        )
+        answer_dir = self.evaluation_dir / "answer"
+        answer_dir.mkdir(parents=True, exist_ok=True)
+        _write_json(answer_dir / "answer.json", feedback)
+        (answer_dir / "answer.md").write_text(
+            answer_markdown(feedback),
+            encoding="utf-8",
         )
         report_path = self.evaluation_dir / "evaluation_report.md"
         report_path.write_text(

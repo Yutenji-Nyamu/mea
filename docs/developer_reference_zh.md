@@ -36,8 +36,8 @@ resume/attempt ledger、legacy protocol 等概念不得继续穿透普通 CLI/Ap
 
 - 只扩展
   `Query interpretation → runtime limits → PlanAgentInitialPlanBuilder → Plan Agent session`
-  主链。生产 Plan Agent 不得实例化 `CatalogPlanAgent` 或任务专属 legacy planner；
-  `experiments/paper/legacy_planner_factory.py` 当前是 caller-zero 的冷源码，只用于迁移审计。
+  主链。catalog/global-query、fixed/task-specific planner 及其兼容 factory 已从当前源码删除；
+  历史行为只从 Git 与冻结 paper result 审计。
 - 生产 generated round 使用 Proposal 与
   `GenericRoboTwinTaskAdapter`；后者只包含 official source/class、runtime TaskContext、检索文档/
   资产和 simulator validation hooks，不得枚举 aspect、variant、metric 或 planner route。
@@ -49,7 +49,7 @@ resume/attempt ledger、legacy protocol 等概念不得继续穿透普通 CLI/Ap
   `mea/artifact_retrieval_index.py` 仍提供 task/VQA retrieval hint，属于待迁移菜单债务；
   `mea/capability_adapter.py` 只是旧模板/消融 shim。任何成员关系都不得作为 open-world round
   的执行许可。
-- catalog 不得在 Query 中预埋 aspect 顺序。catalog 外 concern 保留
+- Query 不得由预排菜单写入 aspect 顺序。开放 concern 保留
   相互独立的 scene/checker/tool typed need，进入 exact reuse 或
   generate→validate；缺少 template id 不能成为终止理由，Tool-only Proposal 不得被
   强制生成 scene/checker。

@@ -20,7 +20,7 @@ def create_agent_run_context(
     *,
     bound_plan_only: bool,
 ) -> AgentRunContext:
-    """Resolve immutable command configuration before routing the Query."""
+    """Resolve command configuration before routing the Query."""
 
     repo_root = args.repo_root.expanduser().resolve()
     if args.policy_backend == "smolvla":
@@ -45,7 +45,6 @@ def create_agent_run_context(
             "taskgen": args.taskgen_model,
             "toolgen": args.toolgen_model,
             "vision": args.vision_model,
-            "feedback": args.feedback_model,
         },
     )
     history_path = (

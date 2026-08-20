@@ -1,377 +1,347 @@
-from copy import deepcopy
+import inspect
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 from mea.feedback import (
     AnswerScopeError,
-    PlanAgentFinalSummary,
-    build_scoped_plan_agent_answer,
     build_answer_scope,
-    project_answer_scope,
+    build_scoped_plan_agent_answer,
+    validate_answer_scope,
     validate_answer_scope_projection,
 )
+from mea.plan_agent_finalization import PlanAgentFinalizationMixin
 
 
-BASE_FEEDBACK = {
-    "answer": "The tested candidate failed.",
-    "evaluation_scope": "A bounded two-candidate evaluation.",
-    "findings": ["The numeric rule recorded a failure."],
-    "limitations": ["This is bounded evidence."],
-    "recommended_next_step": "Test the remaining candidate.",
-}
-
-
-class Provider:
-    last_metadata = {"model": "fake"}
-
-    def text(self, prompt, **kwargs):
-        return json.dumps(BASE_FEEDBACK)
-
-
-def evidence(stop_reason="budget_exhausted"):
-    decisive_agent_stop = stop_reason in {
-        "agent_stop",
-        # Historical fixture spelling retained for the reader-compatibility
-        # test below; current evidence writes ``agent_stop``.
-        "evidence_sufficient",
-    }
+def round_evidence(
+    candidate_id: str,
+    seed: int,
+    *,
+    success_rate: float = 1.0,
+    vqa_conflict: bool = False,
+) -> dict:
     return {
-        "total_episodes": 1,
-        "rounds": [
-            {
-                "seeds": [1001],
-                "num_episodes": 1,
-                "round_plan": {"template_id": "position.left"},
-                "execution_vqa": {"evidence_conflict": True},
-            }
-        ],
-        "observations": {
-            "pipeline_passed": True,
-            "execution_vqa_conflict": True,
-            "policy_success": 0.0,
+        "schema_version": 1,
+        "round_id": f"round_{seed}",
+        "candidate_id": candidate_id,
+        "pipeline": {"passed": True, "failure_stage": None},
+        "planning_observation": None,
+        "policy": {
+            "success_rate": success_rate,
+            "metric": "official_check_success",
+            "authority": "official_check_success",
+            "official_equivalent": True,
+            "execution_scope": "official_check_success",
+            "seeds": [seed],
         },
+        "rule": {
+            "requested": False,
+            "status": None,
+            "metric": None,
+            "route": None,
+            "source": None,
+            "results": [],
+        },
+        "vqa": {
+            "required": vqa_conflict,
+            "status": "passed" if vqa_conflict else "missing",
+            "evidence_conflict": vqa_conflict,
+            "observation": None,
+        },
+        "outcome_semantics": {
+            "status": "official_only",
+            "evidence_conflict": False,
+        },
+        "scene_change": None,
+    }
+
+
+def evidence(stop_reason: str = "agent_stop") -> dict:
+    should_stop = stop_reason != "continue"
+    return {
+        "schema_version": 3,
+        "evaluation_id": "eval_scope",
+        "query": "Where is the bounded weakness?",
         "plan": {
-            "completed_template_ids": ["position.left"],
-            "remaining_template_ids": ["position.right"],
+            "max_rounds": 3,
+            "executed_rounds": 2,
+            "planning_state": "stopped_after_round_2",
+            "round_budget_remaining": 1,
         },
-        "global_query_route": {
-            "selection": {
-                "unsupported_capabilities": [
-                    {"task_name": "click_bell", "aspect_id": "object_mass"}
-                ]
-            }
-        },
+        "rounds": [
+            round_evidence("candidate.a", 7),
+            round_evidence(
+                "candidate.b",
+                8,
+                success_rate=0.0,
+                vqa_conflict=True,
+            ),
+        ],
+        "total_policy_episodes": 2,
         "plan_agent_session": {
             "assessment": {
+                "should_stop": should_stop,
                 "stop_reason": stop_reason,
-                "should_stop": True,
-                "evidence_sufficient": decisive_agent_stop,
-                "claim_verdict": (
-                    "inconclusive"
-                    if not decisive_agent_stop
-                    else "refuted"
-                ),
-                "observed_candidate_ids": ["position.left"],
-                "untested_candidate_ids": ["position.right"],
+                "claim_verdict": "inconclusive",
+                "evidence_sufficient": False,
+                "observed_candidate_ids": ["candidate.a", "candidate.b"],
+                "untested_candidate_ids": ["candidate.c"],
+                "conflict_candidate_ids": ["candidate.b"],
             }
         },
     }
 
 
 class AnswerScopeTests(unittest.TestCase):
-    def test_final_summary_prompt_does_not_invent_stricter_statistics(self):
-        prompt = (
-            Path(__file__).resolve().parents[2]
-            / "mea/feedback/README.Agent.md"
-        ).read_text(encoding="utf-8")
-        self.assertIn(
-            "Do not upgrade “one",
-            prompt,
-        )
-        self.assertIn(
-            "scalar computed from rollout telemetry” into a missing trajectory",
-            prompt,
-        )
-        self.assertIn(
-            "explicitly asks for a peak",
-            prompt,
-        )
-
-    def test_projects_all_evidence_required_limitations(self):
+    def test_scope_reads_policy_seeds_vqa_and_plan_assessment(self):
         scope = build_answer_scope(evidence())
-        self.assertEqual(scope["sample_count"], 1)
-        self.assertEqual(scope["seeds"], [1001])
-        self.assertEqual(scope["tested_candidate_ids"], ["position.left"])
-        self.assertEqual(scope["untested_candidate_ids"], ["position.right"])
+
+        self.assertEqual(scope["sample_count"], 2)
+        self.assertEqual(scope["seeds"], [7, 8])
         self.assertEqual(
-            scope["unsupported_capabilities"], ["click_bell:object_mass"]
+            scope["tested_candidate_ids"],
+            ["candidate.a", "candidate.b"],
         )
+        self.assertEqual(scope["untested_candidate_ids"], ["candidate.c"])
         self.assertTrue(scope["evidence_conflict"])
-        self.assertEqual(scope["termination"], "budget_exhausted")
-        codes = [item["code"] for item in scope["required_limitations"]]
-        self.assertEqual(
-            codes,
-            [
-                "sample_count_and_seeds",
-                "untested_candidates",
-                "unsupported_capabilities",
-                "evidence_conflict",
-                "termination_budget_exhausted",
-            ],
-        )
-        projected = project_answer_scope(BASE_FEEDBACK, scope)
-        validate_answer_scope_projection(projected, scope)
-        for limitation in scope["required_limitations"]:
-            self.assertIn(limitation["text"], projected["limitations"])
-
-    def test_agent_stop_and_budget_exhausted_are_distinct(self):
-        sufficient = build_answer_scope(evidence("agent_stop"))
-        exhausted = build_answer_scope(evidence("budget_exhausted"))
-        self.assertEqual(sufficient["termination"], "agent_stop")
-        self.assertEqual(exhausted["termination"], "budget_exhausted")
-        self.assertNotEqual(
-            sufficient["required_limitations"][-1]["text"],
-            exhausted["required_limitations"][-1]["text"],
-        )
-        self.assertIn(
-            "limited to the recorded task",
-            sufficient["required_limitations"][-1]["text"],
-        )
-        self.assertIn(
-            "round budget was exhausted",
-            exhausted["required_limitations"][-1]["text"],
-        )
-
-    def test_historical_evidence_sufficient_stop_reads_as_agent_stop(self):
-        scope = build_answer_scope(evidence("evidence_sufficient"))
-
         self.assertEqual(scope["termination"], "agent_stop")
-        self.assertEqual(scope["claim_verdict"], "refuted")
+        self.assertNotIn("unsupported_capabilities", scope)
 
-    def test_control_stop_is_inconclusive_but_valid_answer_scope(self):
-        scope = build_answer_scope(evidence("control_baseline_policy_failed"))
-        self.assertEqual(scope["termination"], "control_not_passed")
-        self.assertEqual(scope["claim_verdict"], "inconclusive")
-        self.assertIn(
-            "no property attribution",
-            scope["required_limitations"][-1]["text"],
+    def test_scope_does_not_count_n_zero_planning_round(self):
+        value = evidence("continue")
+        value["rounds"].append(
+            {
+                **round_evidence("candidate.rejected", 9),
+                "round_id": "round_3",
+                "planning_observation": {
+                    "kind": "candidate_unexecutable",
+                    "policy_rollouts_started": 0,
+                    "policy_sample_count": 0,
+                },
+                "policy": {
+                    "success_rate": None,
+                    "metric": None,
+                    "authority": None,
+                    "official_equivalent": None,
+                    "execution_scope": "not_executed",
+                    "seeds": [],
+                },
+            }
         )
-
-    def test_agent_inconclusive_stop_keeps_untested_work_explicit(self):
-        value = evidence("agent_inconclusive_stop")
-        scope = build_answer_scope(value)
-
-        self.assertEqual(scope["termination"], "agent_inconclusive_stop")
-        self.assertEqual(scope["claim_verdict"], "inconclusive")
-        self.assertEqual(scope["untested_candidate_ids"], ["position.right"])
-        self.assertTrue(scope["required_limitations"][-1]["text"])
-
-    def test_plan_agent_session_assessment_reaches_final_scope(self):
-        value = {
-            "total_episodes": 2,
-            "rounds": [
-                {
-                    "seeds": [102000],
-                    "num_episodes": 1,
-                    "round_plan": {
-                        "template_id": (
-                            "performance.completion_time_stability.official"
-                        )
-                    },
-                },
-                {
-                    "seeds": [102000],
-                    "num_episodes": 1,
-                    "round_plan": {
-                        "template_id": "object_instance.base0"
-                    },
-                },
-            ],
-            "plan_agent_session": {
-                "assessment": {
-                    "stop_reason": "agent_stop",
-                    "should_stop": True,
-                    "evidence_sufficient": True,
-                    "claim_verdict": "supported",
-                    "observed_candidate_ids": ["object_instance.base0"],
-                    "untested_candidate_ids": [
-                        "object_position.left_fixed",
-                        "object_position.right_fixed",
-                        "object_instance.base1",
-                    ],
-                    "conflict_candidate_ids": [],
-                }
-            },
-        }
+        value["plan"]["executed_rounds"] = 3
 
         scope = build_answer_scope(value)
 
-        self.assertEqual(scope["termination"], "agent_stop")
-        self.assertEqual(scope["claim_verdict"], "supported")
-        self.assertEqual(
-            scope["tested_candidate_ids"], ["object_instance.base0"]
-        )
-        self.assertEqual(
-            scope["untested_candidate_ids"],
-            [
-                "object_position.left_fixed",
-                "object_position.right_fixed",
-                "object_instance.base1",
-            ],
-        )
+        self.assertEqual(scope["sample_count"], 2)
+        self.assertEqual(scope["seeds"], [7, 8])
+        self.assertEqual(scope["termination"], "continue")
 
-    def test_adversarial_omissions_fail_closed(self):
+    def test_episode_count_remains_distinct_from_unique_seeds(self):
+        value = evidence()
+        value["rounds"][1]["policy"]["seeds"] = [7]
+
+        scope = build_answer_scope(value)
+
+        self.assertEqual(scope["sample_count"], 2)
+        self.assertEqual(scope["seeds"], [7])
+
+    def test_scope_has_no_legacy_field_compatibility(self):
         scope = build_answer_scope(evidence())
-        projected = project_answer_scope(BASE_FEEDBACK, scope)
+        legacy = {**scope, "original_intent_ids": []}
 
-        missing_text = deepcopy(projected)
-        missing_text["limitations"].remove(
-            scope["required_limitations"][0]["text"]
-        )
-        with self.assertRaisesRegex(
-            AnswerScopeError, "omitted evidence-required"
-        ):
-            validate_answer_scope_projection(missing_text, scope)
+        with self.assertRaisesRegex(AnswerScopeError, "current schema"):
+            validate_answer_scope(legacy)
 
-        missing_code = deepcopy(projected)
-        missing_code["limitation_codes"].pop()
-        with self.assertRaisesRegex(AnswerScopeError, "limitation_codes"):
-            validate_answer_scope_projection(missing_code, scope)
-
-        altered_scope = deepcopy(projected)
-        altered_scope["answer_scope"]["termination"] = "agent_stop"
-        with self.assertRaisesRegex(
-            AnswerScopeError, "required_limitations|differs from evidence"
-        ):
-            validate_answer_scope_projection(altered_scope, scope)
-
-        no_scope = deepcopy(projected)
-        del no_scope["answer_scope"]
-        with self.assertRaisesRegex(AnswerScopeError, "missing structured"):
-            validate_answer_scope_projection(no_scope)
-
-    def test_plan_agent_summary_attaches_scope_deterministically(self):
-        repo_root = Path(__file__).resolve().parents[2]
-        with tempfile.TemporaryDirectory() as temp:
-            feedback = PlanAgentFinalSummary(
-                repo_root, Provider(), model="fake"
-            ).generate(evidence(), output_dir=Path(temp))
-        self.assertEqual(
-            feedback["answer_scope"]["termination"], "budget_exhausted"
-        )
-        self.assertIn(
-            "termination_budget_exhausted", feedback["limitation_codes"]
-        )
-        validate_answer_scope_projection(
-            feedback, build_answer_scope(evidence())
-        )
-
-    def test_session_query_answer_uses_the_same_scope_without_provider(self):
-        query_answer = {
-            "answer": (
-                "The bounded evidence does not yet satisfy the truth conditions "
-                "needed to answer the original Query."
-            ),
-            "claim_verdict": "inconclusive",
-            "tested_candidate_ids": ["position.left"],
-            "untested_candidate_ids": ["position.right"],
-            "limitations": ["This is a bounded Plan Agent session answer."],
-            "evaluation_outcomes": [{"authority": "official_check_success"}],
+    def test_pipeline_fallback_reads_round_evidence(self):
+        value = evidence()
+        value.pop("plan_agent_session")
+        value["rounds"][0]["pipeline"] = {
+            "passed": False,
+            "failure_stage": "rollout",
         }
 
-        feedback = build_scoped_plan_agent_answer(evidence(), query_answer)
+        scope = build_answer_scope(value)
 
-        self.assertEqual(feedback["answer"], query_answer["answer"])
-        self.assertEqual(feedback["answer_scope"]["sample_count"], 1)
-        self.assertEqual(
-            feedback["answer_scope"]["termination"], "budget_exhausted"
-        )
-        self.assertEqual(feedback["provider_metadata"]["called"], False)
-        self.assertEqual(feedback["consistency_validation"]["attempts_used"], 0)
-        validate_answer_scope_projection(
-            feedback, build_answer_scope(evidence())
-        )
+        self.assertEqual(scope["termination"], "pipeline_invalid")
 
-    def test_decisive_agent_stop_recommends_replication_without_provider(self):
-        value = evidence("agent_stop")
-        value["plan"]["remaining_template_ids"] = []
-        value["rounds"][0]["execution_vqa"]["evidence_conflict"] = False
-        value["observations"]["execution_vqa_conflict"] = False
-        value["plan_agent_session"]["assessment"]["untested_candidate_ids"] = []
-        value["plan_agent_session"]["assessment"]["conflict_candidate_ids"] = []
+    def test_scoped_answer_projects_exact_current_scope(self):
+        value = evidence()
         query_answer = {
-            "answer": "The bounded candidate is supported.",
-            "claim_verdict": "supported",
-            "tested_candidate_ids": ["position.left"],
-            "untested_candidate_ids": [],
-            "limitations": ["This is one bounded evaluation."],
-            "evaluation_outcomes": [{"authority": "official_check_success"}],
+            "answer": "The bounded evidence remains inconclusive.",
+            "claim_verdict": "inconclusive",
+            "tested_candidate_ids": ["candidate.a", "candidate.b"],
+            "untested_candidate_ids": ["candidate.c"],
+            "evaluation_outcomes": [],
+            "limitations": ["The visual conflict remains unresolved."],
         }
 
         feedback = build_scoped_plan_agent_answer(value, query_answer)
 
-        self.assertEqual(feedback["answer_scope"]["termination"], "agent_stop")
-        self.assertIn("additional seeds", feedback["recommended_next_step"])
-        self.assertFalse(feedback["provider_metadata"]["called"])
+        validate_answer_scope_projection(feedback, build_answer_scope(value))
+        self.assertEqual(feedback["answer"], query_answer["answer"])
+        self.assertEqual(feedback["evidence_policy"]["source"], "RoundEvidence")
+        self.assertTrue(feedback["answer_scope"]["evidence_conflict"])
 
-    def test_unknown_scope_is_explicit_for_legacy_evidence(self):
-        scope = build_answer_scope({"observations": {"pipeline_passed": True}})
-        self.assertIsNone(scope["sample_count"])
-        self.assertEqual(scope["seeds"], [])
-        self.assertEqual(scope["termination"], "unknown")
-        self.assertEqual(
-            [item["code"] for item in scope["required_limitations"]],
-            ["sample_count_and_seeds", "termination_unknown"],
-        )
-
-    def test_legacy_hard_cap_is_never_called_evidence_sufficient(self):
-        scope = build_answer_scope(
-            {
-                "observations": {"pipeline_passed": True},
-                "plan": {
-                    "planning_state": "stopped_after_round_2",
-                    "round_budget_remaining": 0,
-                },
-            }
-        )
-        self.assertEqual(scope["termination"], "budget_exhausted")
-        self.assertIsNone(scope["claim_verdict"])
-
-    def test_policy_execution_count_precedes_cross_cohort_aggregate_count(self):
-        scope = build_answer_scope(
-            {
-                "seed": 1001,
-                "num_episodes": 1,
-                "observations": {
-                    "pipeline_passed": True,
-                    "aggregate": {"unique_episode_count": 3},
-                },
-            }
-        )
-        self.assertEqual(scope["sample_count"], 1)
-
-    def test_pipeline_invalid_precedes_stale_sufficiency_assessment(self):
-        value = evidence("agent_stop")
-        value["observations"]["pipeline_passed"] = False
-        scope = build_answer_scope(value)
-        self.assertEqual(scope["termination"], "pipeline_invalid")
-        self.assertIsNone(scope["claim_verdict"])
-
-    def test_query_candidate_conflict_is_projected_without_vqa_flag(self):
+    def test_final_projection_never_rewrites_agent_answer(self):
         value = evidence()
-        value["observations"]["execution_vqa_conflict"] = False
-        value["rounds"][0]["execution_vqa"]["evidence_conflict"] = False
-        value["plan_agent_session"]["assessment"]["conflict_candidate_ids"] = [
-            "position.left"
-        ]
-        scope = build_answer_scope(value)
-        self.assertTrue(scope["evidence_conflict"])
-        self.assertIn(
-            "evidence_conflict",
-            [item["code"] for item in scope["required_limitations"]],
+        for item in value["rounds"]:
+            item["policy"]["success_rate"] = 0.0
+        query_answer = {
+            "answer": "证据反驳了‘策略执行成功’这一命题。",
+            "claim_verdict": "inconclusive",
+            "tested_candidate_ids": ["candidate.a", "candidate.b"],
+            "untested_candidate_ids": ["candidate.c"],
+            "evaluation_outcomes": [],
+            "limitations": ["The claim wording is quoted, not asserted."],
+        }
+
+        feedback = build_scoped_plan_agent_answer(value, query_answer)
+
+        self.assertEqual(feedback["answer"], query_answer["answer"])
+        self.assertFalse(
+            feedback["consistency_validation"]["deterministic_correction"]
         )
+
+    def test_finalization_uses_deterministic_session_answer(self):
+        source = inspect.getsource(PlanAgentFinalizationMixin._finalize)
+
+        self.assertIn("build_scoped_plan_agent_answer", source)
+        self.assertNotIn("PlanAgentFinalSummary(", source)
+
+    def test_hard_cap_uses_one_budget_exhausted_assessment_everywhere(self):
+        bundle = evidence("continue")
+        bundle["rounds"] = [round_evidence("candidate.a", 7)]
+        bundle["total_policy_episodes"] = 1
+        bundle["plan"] = {
+            "max_rounds": 1,
+            "executed_rounds": 1,
+            "planning_state": "stopped_after_round_1_by_hard_cap",
+            "round_budget_remaining": 0,
+        }
+        bundle.pop("plan_agent_session")
+        round_runs = [
+            {
+                "round_summary": {
+                    "pipeline_passed": True,
+                    "observations": {"planning_observation": None},
+                },
+                "child_manifest": {"run_id": "child_1"},
+            }
+        ]
+        runtime_state = {
+            "runtime_limits": {"round_budget": 1},
+            "assessment": {
+                "should_stop": False,
+                "stop_reason": "continue",
+                "evidence_sufficient": False,
+                "claim_verdict": "inconclusive",
+                "rationale": "The Agent requested another round.",
+                "observed_candidate_ids": ["candidate.a"],
+                "untested_candidate_ids": ["candidate.b"],
+                "conflict_candidate_ids": [],
+                "limitations": [],
+            },
+            "records": [],
+            "control_passed": True,
+        }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evaluation_dir = (
+                root / "mea" / "evaluation_runs" / "eval_hard_cap"
+            )
+            evaluation_dir.mkdir(parents=True)
+            (evaluation_dir / "manifest.json").write_text(
+                "{}\n", encoding="utf-8"
+            )
+            finalizer = PlanAgentFinalizationMixin()
+            finalizer.repo_root = root
+            finalizer.evaluation_dir = evaluation_dir
+            finalizer.evaluation_id = "eval_hard_cap"
+            finalizer.user_request = "Where is the bounded weakness?"
+            finalizer.history_disabled = True
+            finalizer.history_database = None
+            finalizer.history_retrieval = {}
+            finalizer.history_context_count = 0
+            with (
+                patch(
+                    "mea.plan_agent_finalization."
+                    "aggregate_evaluation_results",
+                    return_value=None,
+                ),
+                patch(
+                    "mea.plan_agent_finalization.build_evidence_bundle",
+                    return_value=deepcopy(bundle),
+                ),
+                patch(
+                    "mea.plan_agent_finalization.write_evidence_report",
+                    return_value={},
+                ),
+            ):
+                result = finalizer._finalize(
+                    plan={
+                        "max_rounds": 1,
+                        "planning_state": (
+                            "stopped_after_round_1_by_hard_cap"
+                        ),
+                    },
+                    round_runs=round_runs,
+                    runtime_state=runtime_state,
+                    query_answer=None,
+                    executed_rounds=1,
+                )
+
+            query_answer = json.loads(
+                (
+                    evaluation_dir
+                    / "plan/plan_agent_session/query_answer.json"
+                ).read_text(encoding="utf-8")
+            )
+            persisted_evidence = json.loads(
+                (
+                    evaluation_dir / "summary/evidence_bundle.json"
+                ).read_text(encoding="utf-8")
+            )
+            answer = json.loads(
+                (evaluation_dir / "answer/answer.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            manifest = json.loads(
+                (evaluation_dir / "manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+
+        self.assertEqual(query_answer["stop_reason"], "budget_exhausted")
+        self.assertEqual(
+            persisted_evidence["plan_agent_session"]["assessment"][
+                "stop_reason"
+            ],
+            "budget_exhausted",
+        )
+        self.assertEqual(
+            answer["answer_scope"]["termination"], "budget_exhausted"
+        )
+        self.assertEqual(
+            {
+                query_answer["answer"],
+                answer["answer"],
+                manifest["answer"]["answer"],
+                result["answer"]["answer"],
+            },
+            {query_answer["answer"]},
+        )
+
+    def test_scope_rejects_inconsistent_assessment(self):
+        value = deepcopy(evidence())
+        value["plan_agent_session"]["assessment"]["evidence_sufficient"] = True
+
+        with self.assertRaisesRegex(AnswerScopeError, "inconsistent"):
+            build_answer_scope(value)
 
 
 if __name__ == "__main__":

@@ -16,9 +16,6 @@ from mea.execution_vqa.runtime import (
     _legacy_round_requests_execution_vqa,
     compact_execution_vqa,
 )
-from mea.planner import (
-    build_evidence_aggregate,
-)
 from mea.round_contract import validate_round_capability_contract
 from mea.round_evidence import compact_tool_evaluation
 
@@ -269,17 +266,23 @@ def summarize_round(
         trusted_tool_evaluation,
         task_artifact_summary,
     )
+    raw_official_equivalent = task_artifact_summary.get(
+        "success_official_equivalent"
+    )
+    official_equivalent = (
+        raw_official_equivalent
+        if isinstance(raw_official_equivalent, bool)
+        else None
+    )
     static = child_manifest.get("static_validation") or {}
     policy_outcome = {
         "metric": trusted_tool_evaluation.get("outcome_metric"),
         "authority": trusted_tool_evaluation.get("outcome_authority"),
         "binding": deepcopy(trusted_tool_evaluation.get("outcome_binding")),
         "value": policy_success if uses_act else None,
-        "official_equivalent": bool(
-            task_artifact_summary.get("success_official_equivalent", True)
-        ),
+        "official_equivalent": official_equivalent,
         "execution_scope": task_artifact_summary.get(
-            "success_execution_scope", "official_equivalent"
+            "success_execution_scope"
         ),
         "outcome_semantics": deepcopy(outcome_semantics),
     }
@@ -489,9 +492,6 @@ def summarize_round(
             "策略失败不会被误记为 pipeline failure。"
         ),
     }
-    summary["observations"]["evidence_aggregate"] = (
-        build_evidence_aggregate(round_plan, summary)
-    )
     return summary
 
 

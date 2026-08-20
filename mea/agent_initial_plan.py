@@ -90,6 +90,7 @@ def prepare_initial_plan(
             task_name=args.task_name,
             proposal=semantic_bundle["proposal"],
             evaluation_intent=evaluation_intent,
+            candidate_id=f"dynamic.{args.task_name}.round_1",
             official_success_reuse=bool(
                 isinstance(context.concern_candidate_resolution, Mapping)
                 and context.concern_candidate_resolution.get(
@@ -141,6 +142,7 @@ def prepare_initial_plan(
                     "description": semantic_context["measurement_need"],
                     "reuse_first": True,
                 },
+                candidate_id=f"dynamic.{args.task_name}.round_1",
                 evaluation_intent=evaluation_intent,
             )
     initial_target = build_runtime_open_world_evaluation_target(

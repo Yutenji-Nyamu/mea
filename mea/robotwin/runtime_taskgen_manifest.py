@@ -22,23 +22,17 @@ from mea.robotwin_task_context import (
 )
 from mea.taskgen.generic_backend import GenericRoboTwinTaskAdapter
 from mea.visual_capture import visual_capture_profile_for_proposal
-from mea.taskgen.semantic_review import (
-    CheckerSemanticReviewError,
-    validate_checker_semantic_review,
-)
 
 from .runtime_contracts import _RoboTwinNativeCandidate, _json_object, _required_text
 from .task_identity import RoboTwinTaskIdentity
 
 
-def _validate_taskgen_checker_artifacts(
+def _validate_taskgen_source_artifacts(
     *,
-    candidate: Mapping[str, Any],
-    manifest: Mapping[str, Any],
     candidate_manifest_path: Path,
     task_source_path: Path,
-) -> dict[str, Any] | None:
-    """Validate checker-review structure and current source syntax."""
+) -> None:
+    """Validate the factual candidate manifest and current source syntax."""
 
     try:
         candidate_manifest = json.loads(
@@ -50,52 +44,11 @@ def _validate_taskgen_checker_artifacts(
         ) from exc
     if not isinstance(candidate_manifest, Mapping):
         raise ValueError("TaskGen candidate manifest must be an object")
-    if candidate.get("checker_need") is None:
-        if candidate_manifest.get("checker_semantic_review") is not None:
-            raise ValueError(
-                "official checker reuse carries an unexpected semantic review"
-            )
-        return None
     try:
         source = task_source_path.read_text(encoding="utf-8")
         compile(source, str(task_source_path), "exec")
     except (OSError, UnicodeError, SyntaxError) as exc:
         raise ValueError("TaskGen task source is unavailable or invalid") from exc
-    try:
-        review = validate_checker_semantic_review(
-            candidate_manifest.get("checker_semantic_review")
-        )
-    except CheckerSemanticReviewError as exc:
-        raise ValueError(
-            f"TaskGen checker semantic review is invalid: {exc}"
-        ) from exc
-    manifest_review = manifest.get("checker_semantic_review")
-    if manifest_review is not None:
-        try:
-            manifest_review = validate_checker_semantic_review(manifest_review)
-        except CheckerSemanticReviewError as exc:
-            raise ValueError(
-                "TaskGen manifest checker review is invalid"
-            ) from exc
-        if manifest_review != review:
-            raise ValueError(
-                "TaskGen manifest checker review differs from candidate manifest"
-            )
-    acceptance = manifest.get("task_generation_acceptance")
-    if isinstance(acceptance, Mapping):
-        try:
-            acceptance_review = validate_checker_semantic_review(
-                acceptance.get("checker_semantic_review")
-            )
-        except CheckerSemanticReviewError as exc:
-            raise ValueError(
-                "TaskGen acceptance checker review is invalid"
-            ) from exc
-        if acceptance_review != review:
-            raise ValueError(
-                "TaskGen acceptance checker review differs from the candidate"
-            )
-    return review
 
 
 def bind_validated_taskgen_candidate(
@@ -248,9 +201,7 @@ def bind_validated_taskgen_candidate(
             raise ValueError(
                 f"accepted TaskGen artifact is missing: {artifact}"
             )
-    checker_semantic_review = _validate_taskgen_checker_artifacts(
-        candidate=candidate,
-        manifest=manifest,
+    _validate_taskgen_source_artifacts(
         candidate_manifest_path=candidate_manifest,
         task_source_path=task_source,
     )

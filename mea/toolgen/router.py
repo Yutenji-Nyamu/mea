@@ -181,7 +181,7 @@ def route_tool_request(
         reference_tool = None
         reason = (
             "a derived semantic contract can drive exact reuse or provider "
-            "Python generation with semantic-review/runtime gates"
+            "Python generation with declared-signal and runtime gates"
             if derived
             else "validated typed MetricSpec can be compiled and "
             "differentially gated"

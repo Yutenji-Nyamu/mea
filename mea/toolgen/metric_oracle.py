@@ -1,8 +1,7 @@
-"""Independent semantic review and oracle comparison for MetricSpec Tools."""
+"""External-oracle validation and result comparison for MetricSpec Tools."""
 
 from __future__ import annotations
 
-import json
 import math
 from copy import deepcopy
 from typing import Any, Mapping
@@ -12,83 +11,6 @@ import numpy as np
 from mea.toolkit.tools import TrajectoryView
 
 from .metric_schema import MetricSpecError
-
-
-_SEMANTIC_REVIEW_CHECKS = {
-    "implements_metric_description",
-    "uses_only_declared_signals",
-    "preserves_requested_unit",
-    "returns_diagnostic_not_success",
-}
-
-def _validate_semantic_review(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        raise MetricSpecError("ToolGen semantic review must be an object")
-    review = deepcopy(dict(value))
-    if set(review) != {"schema_version", "status", "checks", "reason"}:
-        raise MetricSpecError(
-            "ToolGen semantic review fields must be exactly "
-            "schema_version/status/checks/reason"
-        )
-    checks = review.get("checks")
-    if (
-        review.get("schema_version") != 1
-        or review.get("status") not in {"approved", "rejected"}
-        or not isinstance(checks, Mapping)
-        or set(checks) != _SEMANTIC_REVIEW_CHECKS
-        or any(type(item) is not bool for item in checks.values())
-        or not isinstance(review.get("reason"), str)
-        or not review["reason"].strip()
-    ):
-        raise MetricSpecError("ToolGen semantic review contract is invalid")
-    if review["status"] != "approved" or not all(checks.values()):
-        raise MetricSpecError(
-            "ToolGen semantic reviewer rejected the generated Tool: "
-            + review["reason"].strip()
-        )
-    review["checks"] = dict(checks)
-    review["reason"] = review["reason"].strip()
-    return review
-
-
-def _semantic_review_prompt(
-    *,
-    metric: str,
-    metric_spec: Mapping[str, Any],
-    source_text: str,
-) -> str:
-    return f"""You are ToolGen's separate semantic-review pass.
-Review one generated trajectory-measurement Tool against its MetricSpec.
-You are a development-agent proxy, not an independent human or model.
-Approve only if the code directly implements the description, accesses only
-required_signals plus physics/policy/time indices, preserves the requested
-unit, and returns passed=None rather than defining success or reward.
-Do not rewrite the code and do not infer task success.
-
-METRIC:
-{metric}
-
-METRIC SPEC:
-{json.dumps(metric_spec, ensure_ascii=False, indent=2)}
-
-GENERATED SOURCE:
-```python
-{source_text.rstrip()}
-```
-
-Return strict JSON with exactly:
-{{
-  "schema_version": 1,
-  "status": "approved" or "rejected",
-  "checks": {{
-    "implements_metric_description": true or false,
-    "uses_only_declared_signals": true or false,
-    "preserves_requested_unit": true or false,
-    "returns_diagnostic_not_success": true or false
-  }},
-  "reason": "one concise sentence"
-}}
-"""
 
 
 def _validate_external_oracle_result(

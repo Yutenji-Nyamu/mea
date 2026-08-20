@@ -413,13 +413,11 @@ Write the Python implementation of one Query-induced Rule Tool.  The typed
 MetricSpec below is the semantic contract, not source code to copy.
 For derived_observable, implement the provider-proposed description over only
 its declared telemetry signals; it is not a pre-registered metric operator.
-Implement the observable from the recorded trajectory.  For a new derived
-observable, a separate semantic reviewer will inspect this complete source
-without changing it.  The result is also restricted to declared signals,
-checked by an AST allowlist, executed twice on real telemetry, validated for a
-finite scalar/null value, the requested unit and trace-bound evidence steps,
-and rejected if episode artifacts change.  This Tool is measurement evidence
-only and must not define task success or reward.
+Implement that description directly and exactly from the recorded trajectory,
+preserve the requested unit, and return passed=None rather than defining task
+success or reward.  The source is restricted to declared signals by an AST
+allowlist, executed twice on real telemetry, validated for a finite scalar/null
+value and trace-bound evidence steps, and rejected if episode artifacts change.
 
 METRIC ID:
 {metric}

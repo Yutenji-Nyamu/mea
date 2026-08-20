@@ -6,10 +6,104 @@ from copy import deepcopy
 from typing import Any, Mapping, Sequence
 
 from .plan_agent_errors import PlanAgentSessionError
-from .plan_agent_evidence import build_plan_agent_evidence_record, render_query_answer
+from .plan_agent_evidence import (
+    build_plan_agent_evidence_record,
+    render_query_answer,
+)
 from .plan_agent_schema import validate_open_query_evidence
 from .runtime_limits import summarize_plan_evidence
 from .query_interpretation import _nonempty_text
+
+
+_BASELINE_LIMITATION = (
+    "A supported or refuted answer requires a successful unchanged official "
+    "baseline; no valid baseline has completed yet."
+)
+_VALID_OFFICIAL_BASELINE_IDENTITIES = frozenset(
+    {
+        (
+            "official_check_success",
+            "official_check_success",
+            True,
+            "official_check_success",
+            "official_check_success",
+            True,
+            "official_only",
+        ),
+        (
+            "official_check_success",
+            "official_check_success_reused",
+            True,
+            "official_check_success",
+            "official_check_success_reused",
+            True,
+            "official_only",
+        ),
+    }
+)
+
+
+def _baseline_passed(record: Mapping[str, Any]) -> bool:
+    evidence = record["round_evidence"]
+    policy = evidence["policy"]
+    evaluation_outcome = record["evaluation_outcome"]
+    semantics = record.get("outcome_semantics") or {}
+    official_identity = (
+        evaluation_outcome.get("metric"),
+        evaluation_outcome.get("authority"),
+        evaluation_outcome.get("official_equivalent"),
+        policy.get("metric"),
+        policy.get("authority"),
+        policy.get("official_equivalent"),
+        semantics.get("status"),
+    )
+    authority_valid = official_identity in _VALID_OFFICIAL_BASELINE_IDENTITIES
+    pipeline_valid = bool(
+        evidence["pipeline"]["passed"]
+        and policy["success_rate"] is not None
+    )
+    return bool(
+        authority_valid
+        and pipeline_valid
+        and record["candidate_evidence"]["outcome"] == "pass"
+        and float(policy["success_rate"]) >= 1.0
+    )
+
+
+def _is_unchanged_official_retry(round_plan: Mapping[str, Any]) -> bool:
+    if round_plan.get("route") != "official":
+        return False
+    proposal = round_plan.get("proposal") or round_plan.get(
+        "experiment_candidate"
+    )
+    return bool(
+        isinstance(proposal, Mapping)
+        and all(
+            proposal.get(field) is None
+            for field in (
+                "scene_need",
+                "checker_need",
+                "rule_tool_need",
+                "vqa_tool_need",
+                "tool_need",
+            )
+        )
+    )
+
+
+def _with_baseline_limitation(
+    assessment: Mapping[str, Any],
+    *,
+    baseline_valid: bool,
+) -> dict[str, Any]:
+    result = deepcopy(dict(assessment))
+    if not baseline_valid:
+        result["limitations"] = list(
+            dict.fromkeys(
+                [*(result.get("limitations") or []), _BASELINE_LIMITATION]
+            )
+        )
+    return result
 
 
 class PlanAgentEvidenceMixin:
@@ -24,7 +118,7 @@ class PlanAgentEvidenceMixin:
     ) -> dict[str, Any]:
         """Observe direct ``MethodRuntime`` evidence without a simulator schema.
 
-        RoboTwin's production round summary carries a rich EvidencePacket.  A
+        RoboTwin's production round summary carries typed RoundEvidence. A
         benchmark with a different native artifact format should not fabricate
         that transport merely to reuse the Plan Agent.  This boundary consumes
         the simulator-neutral evidence schema, applies the same runtime limits,
@@ -60,28 +154,19 @@ class PlanAgentEvidenceMixin:
             candidate_evidence,
             completed_rounds=len(candidate_evidence),
         )
-        if self.require_control_anchor and not baseline_valid:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": (
-                    baseline_stop_reason or "control_baseline_policy_failed"
-                ),
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "The unchanged control did not provide a valid policy "
-                    "baseline, so generated-candidate attribution is blocked."
-                ),
-                "recommended_candidate_ids": [],
-            }
+        assessment = _with_baseline_limitation(
+            assessment,
+            baseline_valid=(
+                baseline_valid if self.require_control_anchor else True
+            ),
+        )
         answer = (
             render_query_answer(
                 self.user_query,
                 assessment,
                 trusted_records,
                 baseline_valid=baseline_valid,
-                baseline_stop_reason=baseline_stop_reason,
+                baseline_stop_reason=assessment["stop_reason"],
             )
             if assessment["should_stop"]
             else None
@@ -119,102 +204,46 @@ class PlanAgentEvidenceMixin:
             build_plan_agent_evidence_record(plan, summary)
             for plan, summary in zip(round_plans, round_summaries)
         ]
-        control_semantics: Mapping[str, Any] = {}
-        control_authority_valid = True
-        control_pipeline_valid = True
         baseline_valid = True
+        baseline_attempt_indexes: set[int] = set()
         if self.require_control_anchor:
             if records[0]["template_id"] != self.control_template:
                 raise PlanAgentSessionError(
                     "Plan Agent property attribution requires the control "
                     "template first"
                 )
-            control_packet = records[0]["evidence_packet"]
-            control_outcome = records[0]["evaluation_outcome"]
-            control_semantics = records[0].get("outcome_semantics") or {}
-            control_authority_valid = bool(
-                control_outcome.get("metric") == "official_check_success"
-                and control_outcome.get("official_equivalent") is not False
-                and control_semantics.get("status") != "conflict"
+            baseline_attempt_indexes = {
+                index
+                for index, plan in enumerate(round_plans)
+                if index == 0 or _is_unchanged_official_retry(plan)
+            }
+            baseline_valid = any(
+                _baseline_passed(records[index])
+                for index in sorted(baseline_attempt_indexes)
             )
-            control_pipeline_valid = bool(
-                control_packet["pipeline"]["passed"]
-                and control_packet["policy"]["reported"]
-                and control_packet["policy"]["success_rate"] is not None
+        candidate_start = 1 if self.require_control_anchor else 0
+        charged_round_records = [
+            (index, records[index])
+            for index in range(candidate_start, len(records))
+            if (
+                index in baseline_attempt_indexes
+                or records[index].get("planning_observation") is None
             )
-            baseline_valid = bool(
-                control_authority_valid
-                and control_pipeline_valid
-                and float(control_packet["policy"]["success_rate"]) >= 1.0
-            )
-        candidate_records = (
-            records[1:] if self.require_control_anchor else records
-        )
-        policy_candidate_records = [
-            record
-            for record in candidate_records
-            if record.get("planning_observation") is None
         ]
         candidate_evidence = [
             deepcopy(record["candidate_evidence"])
-            for record in policy_candidate_records
+            for index, record in charged_round_records
+            if index not in baseline_attempt_indexes
         ]
         assessment = summarize_plan_evidence(
             self.runtime_limits,
             candidate_evidence,
-            completed_rounds=len(policy_candidate_records),
+            completed_rounds=len(charged_round_records),
         )
-        semantic_non_comparable_ids = [
-            record["candidate_id"]
-            for record in candidate_records
-            if (
-                record.get("evaluation_outcome", {}).get("metric")
-                == "generated_check_success"
-                and record.get("outcome_semantics", {}).get("status")
-                == "non_comparable"
-            )
-        ]
-        if semantic_non_comparable_ids:
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": "outcome_semantics_non_comparable",
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "The generated checker lacks a comparable official/core "
-                    "projection, so this Query cannot be answered from the "
-                    "completed evidence."
-                ),
-                "non_comparable_candidate_ids": list(
-                    dict.fromkeys(semantic_non_comparable_ids)
-                ),
-                "recommended_candidate_ids": [],
-            }
-        if self.require_control_anchor and not baseline_valid:
-            reason = (
-                "control_baseline_semantics_conflict"
-                if control_semantics.get("status") == "conflict"
-                else
-                "control_baseline_non_official_outcome"
-                if not control_authority_valid
-                else
-                "control_baseline_pipeline_invalid"
-                if not control_pipeline_valid
-                else "control_baseline_policy_failed"
-            )
-            assessment = {
-                **assessment,
-                "should_stop": True,
-                "stop_reason": reason,
-                "evidence_sufficient": False,
-                "claim_verdict": "inconclusive",
-                "rationale": (
-                    "The unchanged-scene control must pass before property "
-                    "attribution; no candidate experiment is authorized."
-                ),
-                "recommended_candidate_ids": [],
-            }
+        assessment = _with_baseline_limitation(
+            assessment,
+            baseline_valid=baseline_valid,
+        )
         answer = (
             render_query_answer(
                 self.user_query,

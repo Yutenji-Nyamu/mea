@@ -82,31 +82,33 @@ class ProductionCliBoundaryTests(unittest.TestCase):
             },
         )
 
-    def test_agent_import_does_not_load_paper_or_task_specific_planners(self) -> None:
+    def test_retired_planner_modules_are_absent(self) -> None:
         modules = [
-            "mea.strategy_plan",
-            "mea.evidence_manifest",
-            "experiments.paper.registered_execution_adapter",
+            "experiments.paper.compat_agent_profile",
+            "experiments.paper.compat_agent_runner",
+            "experiments.paper.compat_bounded_proposals",
+            "experiments.paper.evidence_manifest",
             "experiments.paper.legacy_planner_factory",
-            "experiments.paper.compat_capability_adapter",
+            "mea.evaluation_graph",
             "mea.planner.catalog",
             "mea.planner.catalog_plan",
             "mea.planner.click_bell",
             "mea.planner.click_bell_catalog",
+            "mea.planner.global_query",
             "mea.planner.official",
             "mea.planner.prototype",
+            "mea.planner.adaptive_step",
             "mea.planner.session",
+            "mea.portfolio",
+            "mea.proposal_agent",
         ]
         probe = (
-            "import importlib.util,json,pathlib,sys;"
-            "path=pathlib.Path('scripts/manipeval_agent.py');"
-            "spec=importlib.util.spec_from_file_location('production_agent_probe',path);"
-            "module=importlib.util.module_from_spec(spec);"
-            "spec.loader.exec_module(module);"
-            f"print(json.dumps({{name:name in sys.modules for name in {modules!r}}}))"
+            "import importlib.util,json;"
+            f"print(json.dumps({{name:importlib.util.find_spec(name) is None "
+            f"for name in {modules!r}}}))"
         )
-        loaded = run_import_probe(probe)
-        self.assertEqual(loaded, {name: False for name in modules})
+        absent = run_import_probe(probe)
+        self.assertEqual(absent, {name: True for name in modules})
 
     def test_plan_agent_routing_uses_runtime_inventory_without_legacy_catalog(
         self,
@@ -118,21 +120,6 @@ class ProductionCliBoundaryTests(unittest.TestCase):
         self.assertIn("capability_catalog=None", source)
         self.assertNotIn("mea.planner.catalog", source)
         self.assertNotIn("run_legacy_catalog_agent", source)
-
-    def _cold_legacy_factory_still_loads_compatibility_planners(self) -> None:
-        modules = [
-            "mea.planner.catalog_plan",
-            "mea.planner.click_bell",
-            "mea.planner.official",
-        ]
-        probe = (
-            "import json,sys;"
-            "from experiments.paper.legacy_planner_factory "
-            "import build_legacy_planner;"
-            f"print(json.dumps({{name:name in sys.modules for name in {modules!r}}}))"
-        )
-        loaded = run_import_probe(probe)
-        self.assertEqual(loaded, {name: True for name in modules})
 
     def test_paper_only_arguments_are_hidden_from_production_help(self) -> None:
         process = subprocess.run(

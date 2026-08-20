@@ -48,6 +48,29 @@ class ExperimentCandidateTests(unittest.TestCase):
         self.assertIsNone(candidate["checker_need"])
         self.assertEqual(candidate["rule_tool_need"]["kind"], "measure")
 
+    def test_default_id_names_the_concern_instead_of_hashing_the_payload(self):
+        scene_candidate = build_experiment_candidate(
+            source_query="Where does target pose fail?",
+            base_task="alpha_task",
+            semantic_concern="target.pose",
+            scene_need="move only the target",
+        )
+        checker_candidate = build_experiment_candidate(
+            source_query="Where does target pose fail?",
+            base_task="alpha_task",
+            semantic_concern="target.pose",
+            checker_need="check the target pose",
+        )
+
+        self.assertEqual(
+            scene_candidate["candidate_id"],
+            "dynamic.alpha_task.target.pose",
+        )
+        self.assertEqual(
+            checker_candidate["candidate_id"],
+            scene_candidate["candidate_id"],
+        )
+
     def test_rule_and_vqa_tool_needs_remain_independent(self):
         candidate = build_experiment_candidate(
             source_query="Does motion look unstable and exceed the jerk limit?",
@@ -70,13 +93,25 @@ class ExperimentCandidateTests(unittest.TestCase):
         self.assertEqual(candidate["rule_tool_need"]["kind"], "measure")
         self.assertEqual(candidate["vqa_tool_need"]["kind"], "vqa")
 
-    def test_candidate_requires_at_least_one_typed_need(self):
-        with self.assertRaisesRegex(ExperimentCandidateError, "at least one"):
-            build_experiment_candidate(
-                source_query="Inspect this policy.",
-                base_task="beat_block_hammer",
-                semantic_concern="unspecified",
-            )
+    def test_unchanged_official_candidate_may_request_no_artifacts(self):
+        candidate = build_experiment_candidate(
+            source_query="Retry the unchanged official task.",
+            base_task="beat_block_hammer",
+            semantic_concern="task_execution.official_retry",
+        )
+
+        self.assertEqual(
+            candidate["candidate_id"],
+            "dynamic.beat_block_hammer.task_execution.official_retry",
+        )
+        for field in (
+            "scene_need",
+            "checker_need",
+            "rule_tool_need",
+            "vqa_tool_need",
+            "tool_need",
+        ):
+            self.assertIsNone(candidate[field])
 
     def test_legacy_candidate_is_read_as_typed_needs(self):
         candidate = validate_experiment_candidate(

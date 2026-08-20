@@ -190,6 +190,15 @@ class PlanAgentDecisionMixin:
             raise PlanAgentSessionError(str(exc)) from exc
 
         if proposal["action"] == "stop":
+            baseline_valid = bool(
+                not self.require_control_anchor
+                or observation.get("control_passed") is True
+            )
+            if proposal["evidence_sufficient"] and not baseline_valid:
+                raise PlanAgentSessionError(
+                    "a supported or refuted answer requires a valid unchanged "
+                    "official baseline"
+                )
             try:
                 stop_assessment = validate_agent_stop(
                     assessment,
@@ -204,7 +213,7 @@ class PlanAgentDecisionMixin:
                 self.user_query,
                 stop_assessment,
                 observation.get("records") or [],
-                baseline_valid=observation.get("control_passed") is not False,
+                baseline_valid=baseline_valid,
             )
             resolution = "plan_agent_stop"
             answered_query = bool(proposal["evidence_sufficient"])
@@ -265,18 +274,15 @@ class PlanAgentDecisionMixin:
             raise PlanAgentSessionError(
                 "cannot continue after the external round cap"
             )
-        if (
-            self.require_control_anchor
-            and observation.get("control_passed") is not True
-        ):
-            raise PlanAgentSessionError(
-                "cannot attribute a property before the control passes"
-            )
         candidate = build_dynamic_experiment_candidate(
             user_query=self.user_query,
             task_name=self.task_name,
             proposal=proposal,
             evaluation_intent=evaluation_intent,
+            candidate_id=(
+                f"dynamic.{self.task_name}.round_"
+                f"{len(executed_template_ids) + 1}"
+            ),
         )
         return self._bind_dynamic_candidate(
             proposal_bundle=proposal_bundle,

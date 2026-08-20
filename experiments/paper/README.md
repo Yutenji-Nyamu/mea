@@ -23,8 +23,6 @@
 | [`manipeval_annotation_replacement.py`](manipeval_annotation_replacement.py) | 用可替换人工标注重算 Plan/VQA 分数 | 否 |
 | [`manipeval_independent_validity.py`](manipeval_independent_validity.py) | 聚合多标注者与 VQA control | 否 |
 | [`manipeval_execution_vqa_replay.py`](manipeval_execution_vqa_replay.py) | 对完成 rollout 做有界 VQA replay | 否 |
-| [`manipeval_evidence_manifest.py`](manipeval_evidence_manifest.py) | 建立或检查 hash-pinned evidence manifest | 否 |
-| [`manipeval_portfolio.py`](manipeval_portfolio.py) | 规划或审计历史 cross-task portfolio | 否 |
 | [`libero_adapter_smoke.py`](libero_adapter_smoke.py) | LIBERO/SmolVLA adapter feasibility smoke | 显式调用时可能 |
 | [`generic_method_matrix.py`](generic_method_matrix.py) | 只读聚合冻结的跨任务方法 bundle，并分离方法、policy 与 Answer 状态 | 否 |
 | [`robotwin_breadth.py`](robotwin_breadth.py) | 动态发现 RoboTwin task；可续跑地分开 TaskContext/Plan 预检、TaskGen materialization 与 SmolVLA official N=1 | 仅 `official` phase |
@@ -46,11 +44,10 @@ belong in the production README or hot architecture document.
 
 ## 2. Compatibility-only protocols
 
-以下文件保留旧实验的可恢复性，不应成为新功能依赖：
+旧 catalog/global-query planner、evaluation graph、cross-task portfolio、hash-pinned
+evidence-manifest entrypoint 及其 runner shim 已删除；需要审计实现时从 Git 历史恢复，冻结的
+`inputs/` 与 `results/` 不改写。当前仍保留的兼容协议是：
 
-- [`compat_agent_profile.py`](compat_agent_profile.py) 与
-  [`legacy_planner_factory.py`](legacy_planner_factory.py)：caller-zero 的冷兼容源码，暂留用于
-  迁移审计；当前生产 CLI 不解析或加载它们。
 - [`compat_taskgen/`](compat_taskgen/)：冻结 standalone TaskGen 的 BBH、ClickBell 与
   Table-3 兼容执行；生产 Agent 的 generic TaskGen 由
   `mea.taskgen.runtime` / `MethodRuntime` 直接拥有。
@@ -59,7 +56,7 @@ belong in the production README or hot architecture document.
 - [`manipeval_click_bell_open_evidence.py`](manipeval_click_bell_open_evidence.py)：历史
   Batch25 evidence assembly。
 
-删除这些兼容文件之前，必须先确认生产代码、paper protocol 和测试均已没有 caller。
+继续删除这些兼容文件之前，必须先确认生产代码、paper protocol 和测试均已没有 caller。
 
 ## 3. Frozen inputs
 

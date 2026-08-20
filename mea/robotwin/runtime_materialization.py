@@ -26,7 +26,7 @@ from mea.visual_capture import visual_capture_profile_for_proposal
 
 from .runtime_contracts import _RoboTwinNativeCandidate, _write_json
 from .runtime_taskgen_manifest import (
-    _validate_taskgen_checker_artifacts,
+    _validate_taskgen_source_artifacts,
     bind_validated_taskgen_candidate,
     taskgen_rollout_manifest,
 )
@@ -231,9 +231,7 @@ def materialize_candidate(
             ),
         )
         manifest, artifacts = taskgen_rollout_manifest(backend, resolution)
-        _validate_taskgen_checker_artifacts(
-            candidate=candidate,
-            manifest=manifest,
+        _validate_taskgen_source_artifacts(
             candidate_manifest_path=Path(
                 artifacts["candidate_manifest"]
             ),

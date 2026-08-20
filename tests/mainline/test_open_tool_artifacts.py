@@ -126,7 +126,24 @@ class OpenToolArtifactTest(unittest.TestCase):
         )
         self.assertEqual(
             context["oracle_broker"]["derived_observable"]["source"],
-            "toolgen_semantic_review_runtime",
+            "toolgen_runtime_validation",
+        )
+        self.assertNotIn(
+            "semantic_review",
+            context["oracle_broker"]["derived_observable"][
+                "validation_contract"
+            ],
+        )
+        self.assertTrue(
+            context["oracle_broker"]["derived_observable"][
+                "validation_contract"
+            ]["deterministic_execution"]
+        )
+        self.assertNotIn(
+            "artifact_immutability",
+            context["oracle_broker"]["derived_observable"][
+                "validation_contract"
+            ],
         )
         self.assertFalse(
             context["oracle_broker"]["derived_observable"][

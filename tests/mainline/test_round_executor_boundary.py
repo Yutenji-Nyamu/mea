@@ -225,6 +225,15 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                     self.assertEqual(observations["actual_seeds"], [])
                     self.assertIsNone(observations["policy_success"])
                     self.assertIsNone(observations["policy_outcome"]["value"])
+                    self.assertIsNone(
+                        observations["policy_outcome"][
+                            "official_equivalent"
+                        ]
+                    )
+                    self.assertEqual(
+                        observations["policy_outcome"]["execution_scope"],
+                        "not_executed",
+                    )
                     self.assertEqual(
                         observations["planning_observation"],
                         planning_observation,
@@ -240,27 +249,25 @@ class RoundExecutorBoundaryTests(unittest.TestCase):
                         observations["outcome_semantics"]["reason_codes"],
                         [scenario["reason_code"]],
                     )
-                    self.assertFalse(
-                        observations["evidence_aggregate"]["policy"][
-                            "reported"
-                        ]
+                    round_evidence = observations["round_evidence"]
+                    self.assertIsNone(
+                        round_evidence["policy"]["success_rate"]
+                    )
+                    self.assertIsNone(
+                        round_evidence["policy"]["official_equivalent"]
                     )
                     self.assertEqual(
-                        observations["evidence_aggregate"][
-                            "evidence_strength"
-                        ],
-                        "uncertain",
+                        round_evidence["planning_observation"],
+                        planning_observation,
                     )
                     self.assertEqual(
-                        observations["evidence_aggregate"]["reason_codes"],
+                        round_evidence["outcome_semantics"]["reason_codes"],
                         [scenario["reason_code"]],
                     )
-                    self.assertEqual(
-                        observations["evidence_aggregate"]["rule"][
-                            "observed_policy_episodes"
-                        ],
-                        0,
-                    )
+                    self.assertFalse(round_evidence["pipeline"]["passed"])
+                    self.assertFalse(round_evidence["rule"]["requested"])
+                    self.assertNotIn("evidence_strength", round_evidence)
+                    self.assertNotIn("coverage", round_evidence)
                     self.assertFalse(result.round_summary["pipeline_passed"])
 
     def test_executed_schema_discovery_is_policy_backend_neutral(self):

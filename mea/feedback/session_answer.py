@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from .answer_scope import build_answer_scope, validate_answer_scope_projection
+from .answer_scope import (
+    build_answer_scope,
+    project_answer_scope,
+    validate_answer_scope_projection,
+)
 from .prototype import (
     PlanAgentFinalSummaryError,
-    _deterministic_aggregate,
     _has_execution_vqa_conflict,
     _require_text,
-    apply_deterministic_consistency_guard,
+    validate_feedback,
 )
 
 
@@ -71,7 +74,7 @@ def build_scoped_plan_agent_answer(
     else:
         next_step = "Collect the next executable evidence chosen by the Plan Agent."
 
-    feedback = apply_deterministic_consistency_guard(
+    feedback = validate_feedback(
         {
             "answer": _require_text(
                 query_answer.get("answer"), "query_answer.answer"
@@ -80,18 +83,17 @@ def build_scoped_plan_agent_answer(
             "findings": findings,
             "limitations": list(limitations),
             "recommended_next_step": next_step,
-        },
-        dict(evidence),
-        attempts_used=0,
+        }
     )
-    aggregate = _deterministic_aggregate(dict(evidence))
+    feedback["consistency_validation"] = {
+        "passed": True,
+        "attempts_used": 0,
+        "rejected_responses": 0,
+        "errors": [],
+        "deterministic_correction": False,
+    }
     feedback["evidence_policy"] = {
-        "aggregate_source": (
-            "deterministic_aggregate" if aggregate is not None else None
-        ),
-        "aggregate_status": (
-            aggregate.get("status") if aggregate is not None else None
-        ),
+        "source": "RoundEvidence",
         "episode_math_by_plan_agent_summary": False,
         "numeric_simulator_tools_authoritative": True,
         "execution_vqa_is_visual_only": True,
@@ -101,6 +103,7 @@ def build_scoped_plan_agent_answer(
         "called": False,
         "reason": "plan_agent_session_query_answer_projection",
     }
+    feedback = project_answer_scope(feedback, scope)
     validate_answer_scope_projection(feedback, scope)
     return feedback
 

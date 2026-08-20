@@ -1,11 +1,4 @@
-"""Trusted model-facing context for one bound MEA planning session.
-
-The paper-level Plan Agent needs policy metadata, simulator constraints, and
-the task capabilities that it may request.  Those facts already exist in the
-EvaluationTarget, TaskSchema, and declarative capability registry.  This
-module projects them into one compact JSON contract without exposing local
-paths or inventing policy metadata that is not available in the repository.
-"""
+"""Trusted policy and simulator facts for one bound planning session."""
 
 from __future__ import annotations
 
@@ -13,7 +6,6 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 
-from mea.artifact_retrieval_index import resolve_task_retrieval_index
 from mea.toolkit import load_task_schema
 from .policy_task_binding import (
     PolicyTaskBindingError,
@@ -29,7 +21,6 @@ _CONTEXT_KEYS = {
     "schema_version",
     "policy_card",
     "simulator_card",
-    "adapter_view",
 }
 _POLICY_KEYS = {
     "schema_version",
@@ -57,22 +48,6 @@ _SIMULATOR_KEYS = {
     "probe_task_attributes",
     "semantic_roles",
     "success_contract",
-    "available_aspect_ids",
-}
-_ADAPTER_KEYS = {"schema_version", "task_name", "planner_kind", "templates"}
-_TEMPLATE_KEYS = {
-    "template_id",
-    "aspect_id",
-    "semantic_scope",
-    "target_role",
-    "taskgen_operation",
-    "capability_id",
-    "controlled_axis",
-    "generation_mode",
-    "allowed_change_roots",
-    "tool_metric",
-    "vqa_phenomenon_ids",
-    "required_gates",
 }
 _UNKNOWN_POLICY_METADATA = [
     "action_scaling",
@@ -93,39 +68,15 @@ def _require_text(value: Any, *, field: str) -> str:
     return value.strip()
 
 
-def _retrieval_aspects(task_name: str) -> list[dict[str, Any]]:
-    """Group the artifact index without making it an execution boundary."""
-
-    grouped: dict[str, dict[str, Any]] = {}
-    retrieval_index = resolve_task_retrieval_index(
-        task_name,
-        allow_unregistered=True,
-    )
-    for contract in retrieval_index["entries"]:
-        aspect = contract["aspect"]
-        aspect_id = str(aspect["aspect_id"])
-        entry = grouped.setdefault(
-            aspect_id,
-            {
-                "aspect_id": aspect_id,
-                "template_ids": [],
-            },
-        )
-        entry["template_ids"].append(str(contract["template_id"]))
-    return [grouped[key] for key in sorted(grouped)]
-
-
 def _target_context_sources(
     target: Mapping[str, Any],
 ) -> tuple[
     str,
     str,
-    str,
     Mapping[str, Any],
     Mapping[str, Any],
-    list[dict[str, Any]],
 ]:
-    """Read legacy catalog targets or the production PolicyTaskBinding."""
+    """Read the bound task, policy, and checkpoint facts."""
 
     if "policy_task_binding" in target:
         try:
@@ -135,10 +86,8 @@ def _target_context_sources(
         return (
             binding["task_name"],
             binding["task_schema"]["task_family"],
-            "retrieval_index_only",
             binding["policy"],
             binding["checkpoint"],
-            _retrieval_aspects(binding["task_name"]),
         )
     task_name = _require_text(
         target.get("task_name"), field="EvaluationTarget.task_name"
@@ -146,27 +95,17 @@ def _target_context_sources(
     task_family = _require_text(
         target.get("task_family"), field="EvaluationTarget.task_family"
     )
-    planner_kind = _require_text(
-        target.get("planner_kind"), field="EvaluationTarget.planner_kind"
-    )
     policy = _require_mapping(
         target.get("policy"), field="EvaluationTarget.policy"
     )
     checkpoint = _require_mapping(
         target.get("checkpoint"), field="EvaluationTarget.checkpoint"
     )
-    raw_aspects = target.get("aspects")
-    if not isinstance(raw_aspects, list) or not raw_aspects:
-        raise PlanningContextError(
-            "EvaluationTarget.aspects must be a non-empty list"
-        )
     return (
         task_name,
         task_family,
-        planner_kind,
         policy,
         checkpoint,
-        deepcopy(raw_aspects),
     )
 
 
@@ -178,10 +117,8 @@ def _build_planning_context(
     (
         task_name,
         task_family,
-        planner_kind,
         policy,
         checkpoint,
-        raw_aspects,
     ) = _target_context_sources(trusted_target)
     production_binding = (
         policy_task_binding_from_target(trusted_target)
@@ -236,65 +173,6 @@ def _build_planning_context(
                 "semantic_telemetry_available": False,
             },
         }
-
-    retrieval_index = resolve_task_retrieval_index(
-        task_name,
-        allow_unregistered=True,
-    )
-    registered = {
-        str(contract["template_id"]): contract
-        for contract in retrieval_index["entries"]
-    }
-    templates: list[dict[str, Any]] = []
-    aspect_ids: list[str] = []
-    seen_templates: set[str] = set()
-    for raw_aspect in raw_aspects:
-        aspect = _require_mapping(raw_aspect, field="EvaluationTarget.aspect")
-        aspect_id = _require_text(
-            aspect.get("aspect_id"), field="EvaluationTarget.aspect.aspect_id"
-        )
-        if aspect_id in aspect_ids:
-            raise PlanningContextError(f"duplicate target aspect: {aspect_id!r}")
-        aspect_ids.append(aspect_id)
-        template_ids = aspect.get("template_ids")
-        if not isinstance(template_ids, list) or not template_ids:
-            raise PlanningContextError(f"aspect {aspect_id!r} has no templates")
-        for raw_template_id in template_ids:
-            template_id = _require_text(
-                raw_template_id, field=f"{aspect_id}.template_id"
-            )
-            if template_id in seen_templates:
-                raise PlanningContextError(f"duplicate target template: {template_id!r}")
-            seen_templates.add(template_id)
-            try:
-                contract = registered[template_id]
-            except KeyError as exc:
-                raise PlanningContextError(
-                    f"target template is absent from capability registry: {template_id!r}"
-                ) from exc
-            if contract["aspect"]["aspect_id"] != aspect_id:
-                raise PlanningContextError(
-                    f"target aspect differs from capability contract: {template_id!r}"
-                )
-            taskgen = contract["taskgen"]
-            templates.append(
-                {
-                    "template_id": template_id,
-                    "aspect_id": aspect_id,
-                    "semantic_scope": contract["aspect"]["semantic_scope"],
-                    "target_role": contract["aspect"]["target_role"],
-                    "taskgen_operation": taskgen["operation"],
-                    "capability_id": taskgen["capability_id"],
-                    "controlled_axis": taskgen["controlled_axis"],
-                    "generation_mode": taskgen["generation_mode"],
-                    "allowed_change_roots": list(taskgen["allowed_change_roots"]),
-                    "tool_metric": contract["tool"]["metric"],
-                    "vqa_phenomenon_ids": list(
-                        contract["vqa"]["phenomenon_ids"]
-                    ),
-                    "required_gates": list(contract["required_gates"]),
-                }
-            )
 
     action_dimension = schema.get("action_dimension")
     if (
@@ -364,19 +242,11 @@ def _build_planning_context(
         "probe_task_attributes": list(schema.get("probe_task_attributes") or []),
         "semantic_roles": deepcopy(schema.get("semantic_roles") or {}),
         "success_contract": deepcopy(schema.get("success_contract") or {}),
-        "available_aspect_ids": aspect_ids,
-    }
-    adapter_view = {
-        "schema_version": 1,
-        "task_name": task_name,
-        "planner_kind": planner_kind,
-        "templates": templates,
     }
     return {
         "schema_version": 1,
         "policy_card": policy_card,
         "simulator_card": simulator_card,
-        "adapter_view": adapter_view,
     }
 
 
@@ -408,26 +278,12 @@ def validate_planning_context(
     nested_contracts = (
         ("policy_card", _POLICY_KEYS),
         ("simulator_card", _SIMULATOR_KEYS),
-        ("adapter_view", _ADAPTER_KEYS),
     )
     for name, keys in nested_contracts:
         nested = context.get(name)
         if not isinstance(nested, Mapping) or set(nested) != keys:
             raise PlanningContextError(
                 f"{name} fields must be exactly {sorted(keys)}"
-            )
-    templates = context["adapter_view"].get("templates")
-    production_binding = "policy_task_binding" in target
-    if not isinstance(templates, list):
-        raise PlanningContextError("adapter_view.templates must be a list")
-    if not production_binding and not templates:
-        raise PlanningContextError(
-            "legacy adapter_view.templates must be non-empty"
-        )
-    for template in templates:
-        if not isinstance(template, Mapping) or set(template) != _TEMPLATE_KEYS:
-            raise PlanningContextError(
-                f"adapter template fields must be exactly {sorted(_TEMPLATE_KEYS)}"
             )
     expected = _build_planning_context(repo_root, target)
     if context != expected:

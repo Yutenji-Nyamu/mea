@@ -191,12 +191,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--taskgen-model")
     parser.add_argument("--toolgen-model")
     parser.add_argument("--vision-model")
-    parser.add_argument("--answer-model", dest="feedback_model")
-    parser.add_argument(
-        "--feedback-model",
-        dest="feedback_model",
-        help=argparse.SUPPRESS,
-    )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument(

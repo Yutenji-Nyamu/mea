@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from mea.execution_vqa.runtime import run_round_execution_vqa
-from mea.planner import build_evidence_aggregate
+from mea.planner.evidence_policy import build_round_evidence
 from mea.proposals import tool_request_from_proposal
 from mea.round_evidence import aggregate_round_results
 from mea.round_summary import summarize_round
@@ -265,9 +265,12 @@ class RoundExecutor:
             semantic_ready=semantic_ready,
             round_summary=round_summary,
         )
+        round_summary["observations"]["round_evidence"] = (
+            build_round_evidence(round_plan, round_summary)
+        )
         _write_json(
-            execution_dir / "evidence_aggregate.json",
-            round_summary["observations"]["evidence_aggregate"],
+            execution_dir / "round_evidence.json",
+            round_summary["observations"]["round_evidence"],
         )
         _write_json(
             evaluation_dir / "summary" / f"{round_id}.json",
@@ -791,12 +794,6 @@ class RoundExecutor:
                         },
                     }
                 )
-            round_summary["observations"]["evidence_aggregate"] = (
-                build_evidence_aggregate(
-                    request.round_plan,
-                    round_summary,
-                )
-            )
 
 
 __all__ = [

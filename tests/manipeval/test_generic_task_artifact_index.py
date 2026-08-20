@@ -10,6 +10,8 @@ from mea.taskgen.artifact_index import (
     GenericTaskArtifactIndex,
     materialize_reused_generic_task,
 )
+
+
 def _semantic_key() -> dict:
     return {
         "schema_version": 2,
@@ -44,18 +46,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "checker_need": "require upright placement",
                 "rule_tool_need": "measure contact",
             }
-            checker_review = {
-                "schema_version": 1,
-                "status": "approved",
-                "checks": {
-                    "implements_every_checker_requirement": True,
-                    "preserves_quantifiers_and_temporal_relations": True,
-                    "uses_direct_current_simulator_observables": True,
-                    "does_not_substitute_correlated_proxy": True,
-                },
-                "reason": "The checker directly implements upright placement.",
-                "authority": "development_agent_proxy",
-            }
             (source / "candidate_manifest.json").write_text(
                 json.dumps(
                     {
@@ -63,7 +53,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                         "task_module": (
                             "mea.generated_tasks.run_source.task"
                         ),
-                        "checker_semantic_review": checker_review,
                         "codegen_provenance": {},
                     }
                 ),
@@ -98,7 +87,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "task_generation_acceptance": {
                     "status": "accepted",
                     "act_rollouts_started_before_acceptance": 0,
-                    "checker_semantic_review": checker_review,
                 },
                 "act_evaluation": {
                     "artifact": "evaluation/stale.json",
@@ -119,7 +107,6 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
             index.register_generated(
                 resolution=resolution,
                 manifest_path=source_manifest,
-                source_query=candidate["source_query"],
             )
             match = index.find_exact(
                 {
@@ -171,14 +158,32 @@ class GenericTaskArtifactIndexTests(unittest.TestCase):
                 "pending_current_seed_revalidation",
             )
             self.assertEqual(
-                index.registry.entries(kind="task")[0]["reuse_count"],
-                0,
+                index.registry.entries(kind="task"),
+                [
+                    {
+                        "kind": "task",
+                        "semantic_key": semantic_key,
+                        "artifact_path": (
+                            "mea/generated_tasks/run_source/manifest.json"
+                        ),
+                    }
+                ],
             )
-            index.mark_reuse(semantic_key)
-            self.assertEqual(
-                index.registry.entries(kind="task")[0]["reuse_count"],
-                1,
-            )
+
+            manifest["scene_validation"]["generic_preflight"][
+                "scene_change_passed"
+            ] = False
+            source_manifest.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(
+                GenericTaskArtifactError,
+                "lacks current passing validation",
+            ):
+                index.find_exact(
+                    {
+                        "schema_version": 2,
+                        "semantic_key": semantic_key,
+                    }
+                )
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ Proposal，不运行 simulator 或 policy，也不是性能证据。重点核对
 2. task 与 checkpoint scope 可执行；
 3. `control_requirement` 是否来自 Query，而非固定 official-first；
 4. scene/checker/Rule/VQA need 是否彼此独立且只声明必需子集；
-5. catalog/task-specific planner 未进入生产路径。
+5. 当前源码不存在 catalog/task-specific planner 旁路。
 
 若 `control_requirement=not_required`，初始 rounds 可以等待首个 Proposal
 materialization；这不是缺少计划。plan-only 不能预测后续一定生成、复用或成功，更不能

@@ -65,11 +65,6 @@ from .provider_scene_checker import (
     write_candidate_artifacts,
 )
 from .preservation_facts import normalize_preservation_conditions
-from .semantic_review import (
-    CheckerSemanticReviewError,
-    review_generated_checker,
-    validate_checker_semantic_review,
-)
 
 
 _TASK_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -411,24 +406,6 @@ def _normalize_validation(
             "preflight did not verify the expected scene state "
             f"{expected_scene_state!r} relative to the official control"
         )
-    if candidate.get("checker_need") is not None:
-        try:
-            report["checker_semantic_review"] = (
-                validate_checker_semantic_review(
-                    report.get("checker_semantic_review")
-                )
-            )
-        except CheckerSemanticReviewError as exc:
-            raise GenericTaskGenError(str(exc)) from exc
-        report["checker_semantic_review_required"] = True
-    else:
-        if report.get("checker_semantic_review") is not None:
-            raise GenericTaskGenError(
-                "official checker reuse must not carry a generated-checker "
-                "semantic review"
-            )
-        report["checker_semantic_review"] = None
-        report["checker_semantic_review_required"] = False
     report["checker_fixture_count"] = len(fixtures)
     report["preflight"] = deepcopy(dict(preflight))
     report["scene_alignment"] = {
@@ -594,7 +571,6 @@ class GenericRoboTwinTaskGenBackend:
                 for name in ("load_actors", "check_success")
                 if method_provenance[name] == "official_reused"
             ]
-            checker_semantic_review = None
             try:
                 raw_validation = adapter.hooks.validate_methods(
                     typed_methods, normalized_candidate
@@ -613,45 +589,15 @@ class GenericRoboTwinTaskGenBackend:
                 )
                 # ``run_provider_codegen`` owns the only two lifecycle
                 # directories: the initial generation and, when needed, one
-                # targeted repair.  Keep simulator and semantic-review
-                # artifacts beside the provider prompt that produced them
-                # instead of recreating an independent numbered-attempt tree.
+                # targeted repair. Keep simulator artifacts beside the provider
+                # prompt that produced them instead of recreating an independent
+                # numbered-attempt tree.
                 attempt_dir = attempt_root / (
                     "generation" if validation_counter == 1 else "repair"
                 )
                 (attempt_dir / "candidate_task.py").write_text(
                     module_source, encoding="utf-8"
                 )
-                if normalized_candidate["checker_need"] is not None:
-                    try:
-                        checker_semantic_review = (
-                            review_generated_checker(
-                                provider=self.provider,
-                                model=self.model,
-                                candidate=normalized_candidate,
-                                task_context=normalized_adapter[
-                                    "task_context"
-                                ],
-                                method_provenance=method_provenance,
-                                generated_scene=typed_methods["load_actors"],
-                                official_checker=official_methods[
-                                    "check_success"
-                                ],
-                                generated_checker=typed_methods[
-                                    "check_success"
-                                ],
-                                attempt_dir=attempt_dir,
-                            )
-                        )
-                    except CheckerSemanticReviewError as exc:
-                        raise GenericTaskGenError(
-                            str(exc),
-                            runtime={
-                                "semantic_review_provider_calls": (
-                                    exc.provider_calls
-                                )
-                            },
-                        ) from exc
                 preflight = adapter.hooks.preflight_candidate(
                     attempt_dir, module_source, normalized_candidate
                 )
@@ -662,24 +608,11 @@ class GenericRoboTwinTaskGenBackend:
                         "official_reused_methods": (
                             official_reused_methods
                         ),
-                        "checker_semantic_review": (
-                            checker_semantic_review
-                        ),
-                        "semantic_review_provider_calls": (
-                            1 if checker_semantic_review is not None else 0
-                        ),
                     },
                     candidate=normalized_candidate,
                     preflight=preflight,
                 )
-            except GenericTaskGenError as exc:
-                if checker_semantic_review is not None:
-                    runtime = dict(exc.runtime)
-                    runtime["semantic_review_provider_calls"] = 1
-                    raise GenericTaskGenError(
-                        str(exc),
-                        runtime=runtime,
-                    ) from exc
+            except GenericTaskGenError:
                 raise
             except Exception as exc:
                 raise TaskGenerationStageError(
@@ -687,11 +620,7 @@ class GenericRoboTwinTaskGenBackend:
                     "unclassified_exception",
                     "generic TaskGen validation hook failed: "
                     f"{type(exc).__name__}: {exc}",
-                    runtime=(
-                        {"provider_calls": 2}
-                        if checker_semantic_review is not None
-                        else {"provider_calls": 1}
-                    ),
+                    runtime={"provider_calls": 1},
                 ) from exc
             accepted_module["source"] = module_source
             return validation
